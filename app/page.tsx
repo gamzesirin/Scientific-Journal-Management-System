@@ -1,103 +1,109 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+export default async function HomePage() {
+	const supabase = await createServerSupabaseClient()
+	const {
+		data: { user }
+	} = await supabase.auth.getUser()
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+	// Eğer kullanıcı giriş yapmışsa dashboard'a yönlendir
+	if (user) {
+		redirect('/dashboard')
+	}
+
+	return (
+		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+			{/* Hero Section */}
+			<div className="relative isolate px-6 pt-14 lg:px-8">
+				<div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56">
+					<div className="text-center">
+						<h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
+							Bilimsel Dergi Yönetim Sistemi
+						</h1>
+						<p className="mt-6 text-lg leading-8 text-gray-600">
+							Makalelerinizi gönderin, hakem değerlendirmelerini takip edin ve akademik yayın sürecinizi kolayca
+							yönetin.
+						</p>
+						<div className="mt-10 flex items-center justify-center gap-x-6">
+							<Button asChild size="lg">
+								<Link href="/auth/register">Hesap Oluştur</Link>
+							</Button>
+							<Button asChild variant="outline" size="lg">
+								<Link href="/auth/login">
+									Giriş Yap <span aria-hidden="true" className="ml-2">→</span>
+								</Link>
+							</Button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			{/* Features Section */}
+			<div className="py-24 sm:py-32">
+				<div className="mx-auto max-w-7xl px-6 lg:px-8">
+					<div className="mx-auto max-w-2xl lg:text-center">
+						<h2 className="text-base font-semibold leading-7 text-primary">Hızlı ve Kolay</h2>
+						<p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+							Akademik Yayın Sürecinizi Kolaylaştırın
+						</p>
+						<p className="mt-6 text-lg leading-8 text-muted-foreground">
+							Modern ve kullanıcı dostu arayüzümüz ile makale gönderiminden hakem değerlendirmesine kadar tüm süreçleri
+							kolayca yönetin.
+						</p>
+					</div>
+					<div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:mt-20 lg:mt-24 lg:max-w-4xl lg:grid-cols-2">
+						<Card>
+							<CardHeader>
+								<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-2xl">📝</div>
+								<CardTitle>Kolay Makale Gönderimi</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription>
+									Makalelerinizi birkaç tıklama ile sisteme yükleyin ve sürecin her aşamasını takip edin.
+								</CardDescription>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardHeader>
+								<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-2xl">👥</div>
+								<CardTitle>Hakem Değerlendirmesi</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription>
+									Uzman hakemler tarafından yapılan değerlendirmeleri anlık olarak takip edin.
+								</CardDescription>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardHeader>
+								<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-2xl">📊</div>
+								<CardTitle>Detaylı Raporlama</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription>
+									Makalenizin durumu, hakem değerlendirmeleri ve editör kararları hakkında detaylı raporlar alın.
+								</CardDescription>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardHeader>
+								<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-2xl">🔒</div>
+								<CardTitle>Güvenli ve Özel</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<CardDescription>
+									Makaleleriniz ve değerlendirmeler güvenli bir şekilde saklanır ve sadece yetkili kişiler tarafından
+									görüntülenebilir.
+								</CardDescription>
+							</CardContent>
+						</Card>
+					</div>
+				</div>
+			</div>
+		</div>
+	)
 }
