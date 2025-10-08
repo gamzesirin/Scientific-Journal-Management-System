@@ -2,11 +2,12 @@
 
 ## Bilimsel Dergi Yönetim Sistemi - 6 Haftalık Detaylı Plan
 
-**Proje Adı**: AI-Powered Journal Management System (MVP)  
-**Teknoloji Stack**: Next.js 15 + TypeScript + Supabase + Tailwind CSS  
-**Hedef Süre**: 6 hafta  
-**Başlangıç**: Hemen 🚀  
-**Son Güncelleme**: 29 Eylül 2025
+**Proje Adı**: AI-Powered Journal Management System (MVP)
+**Teknoloji Stack**: Next.js 15 + TypeScript + Supabase + Tailwind CSS + Shadcn UI
+**Hedef Süre**: 6 hafta
+**Başlangıç**: Hemen 🚀
+**Son Güncelleme**: 4 Ekim 2025
+**Mevcut Durum**: ✅ Hafta 1 Tamamlandı | ✅ Hafta 3 Tamamlandı | 🔄 Hafta 2 Devam Ediyor
 
 ---
 
@@ -564,11 +565,11 @@ export const config = {
 
 ### 📦 Teslim Edilecekler (Gün 3-5):
 
-- [x] Users tablosu ve RLS
-- [x] Auth actions (sign up/in/out)
-- [x] Login/Register sayfaları
-- [x] Middleware protection
-- [x] Test kullanıcısı oluşturuldu
+- [x] Users tablosu ve RLS ✅
+- [x] Auth actions (sign up/in/out) ✅
+- [x] Login/Register sayfaları ✅ (Shadcn UI ile)
+- [x] Middleware protection ✅
+- [x] Test kullanıcısı oluşturuldu ✅
 
 ---
 
@@ -694,23 +695,23 @@ WHERE email = 'reviewer@test.com';
 
 ### 📦 Teslim Edilecekler (Gün 6-7):
 
-- [x] Role helper functions
-- [x] Role-based routing
-- [x] Test kullanıcıları oluşturuldu
-- [x] Her rol kendi dashboard'una gidiyor
+- [x] Role helper functions ✅
+- [x] Role-based routing ✅
+- [x] Test kullanıcıları oluşturuldu ✅
+- [x] Her rol kendi dashboard'una gidiyor ✅
 
 ---
 
-### ✅ HAFTA 1 - CHECKPOINT
+### ✅ HAFTA 1 - CHECKPOINT ✅ TAMAMLANDI
 
 **Tamamlanması Gerekenler**:
 
-- [x] Supabase projesi aktif
-- [x] Next.js projesi çalışıyor
-- [x] Authentication tam çalışıyor
-- [x] 4 rol sistemi aktif
-- [x] Protected routes çalışıyor
-- [x] Test kullanıcıları hazır
+- [x] Supabase projesi aktif ✅
+- [x] Next.js projesi çalışıyor ✅
+- [x] Authentication tam çalışıyor ✅
+- [x] 4 rol sistemi aktif ✅
+- [x] Protected routes çalışıyor ✅
+- [x] Test kullanıcıları hazır ✅
 
 **Test**:
 
@@ -1222,44 +1223,89 @@ export async function downloadPaperFile(fileUrl: string) {
 
 ---
 
-## 📅 HAFTA 3: YAZAR PANELİ VE MAKALE YÜKLEME
+## 📅 HAFTA 3: YAZAR PANELİ VE MAKALE YÜKLEME ✅ TAMAMLANDI
 
-**Hedef**: Yazarlar makale yükleyebiliyor  
-**Süre**: 7 gün  
+**Hedef**: Yazarlar makale yükleyebiliyor ✅
+**Süre**: 7 gün
 **Zorluk**: ⭐⭐ Orta
+**Durum**: ✅ Tamamlandı (Shadcn UI ile modernize edildi)
 
-### 🔵 GÜN 15-17: Yazar Dashboard
+### 🔵 GÜN 15-17: Yazar Dashboard ✅
 
-_[Layout, Papers List, Status Badges]_
+- [x] Author Dashboard Layout (Shadcn Card + Button kullanımı)
+- [x] Makale istatistikleri (Toplam, Gönderildi, İnceleme, Kabul, Yayınlandı)
+- [x] Çıkış yapma fonksiyonu
+- [x] Responsive tasarım
 
-### 🔵 GÜN 18-21: Makale Yükleme
+### 🔵 GÜN 18-21: Makale Yükleme ✅
 
-_[Submit Form, File Upload, Detail Page]_
+- [x] ArticleUploadForm komponenti (Shadcn Form + Input + Textarea + Select)
+- [x] File upload (PDF/Word desteği, max 10MB)
+- [x] ArticleList komponenti (Shadcn Table + Badge)
+- [x] Article detail page (/articles/[id])
+- [x] Status badge'leri (submitted, under_review, accepted, rejected, published)
 
 ### 📦 Teslim Edilecekler:
 
-- [x] Author dashboard UI
-- [x] Paper submission form
-- [x] File upload çalışıyor
-- [x] Papers listesi
+- [x] Author dashboard UI ✅ (Shadcn UI ile modernize edildi)
+- [x] Paper submission form ✅ (ArticleUploadForm komponenti)
+- [x] File upload çalışıyor ✅ (Supabase Storage entegrasyonu)
+- [x] Papers listesi ✅ (ArticleList komponenti)
+- [x] Article detail page ✅ (Makale detay sayfası)
 
 ---
 
-## 📅 HAFTA 4: EDİTÖR PANELİ
+## 📅 HAFTA 4: EDİTÖR PANELİ ✅ TAMAMLANDI
 
-**Hedef**: Editörler hakem atıyor  
+**Hedef**: Editörler hakem atıyor ✅
 **Süre**: 7 gün
+**Durum**: ✅ Tamamlandı
 
-_[Editor Dashboard, Reviewer Assignment]_
+### 🔵 Tamamlanan Özellikler:
+
+- [x] Editor Dashboard Layout (Shadcn Card + Badge kullanımı)
+- [x] Makale listesi görüntüleme (tüm makaleler)
+- [x] İstatistik kartları (Gönderildi, İnceleniyor, Kabul, Red, Yayınlandı)
+- [x] Makale detay sayfası (/editor/papers/[id])
+- [x] Makale durumu güncelleme sistemi
+- [x] Hakem atama sayfası (/editor/papers/[id]/assign)
+- [x] Hakem seçimi ve deadline belirleme
+- [x] Responsive ve modern UI
+
+### 📦 Teslim Edilecekler:
+
+- [x] Editor dashboard UI ✅
+- [x] Papers list view ✅
+- [x] Paper detail page ✅
+- [x] Status management ✅
+- [x] Reviewer assignment page ✅
 
 ---
 
-## 📅 HAFTA 5: HAKEM PANELİ
+## 📅 HAFTA 5: HAKEM PANELİ ✅ TAMAMLANDI
 
-**Hedef**: Hakemler değerlendiriyor  
+**Hedef**: Hakemler değerlendiriyor ✅
 **Süre**: 7 gün
+**Durum**: ✅ Tamamlandı
 
-_[Reviewer Dashboard, Review Form]_
+### 🔵 Tamamlanan Özellikler:
+
+- [x] Reviewer Dashboard Layout (İstatistikler ve atanmış makaleler)
+- [x] AssignedPapersList komponenti (Hakem için atanmış makalelerin listesi)
+- [x] ReviewForm komponenti (Detaylı değerlendirme formu)
+- [x] Review detail page (/reviewer/papers/[id]/review)
+- [x] ReviewStatistics komponenti (Hakem performans istatistikleri)
+- [x] Reviewer statistics page (/reviewer/statistics)
+- [x] Review status management (draft/submitted durumları)
+- [x] Assignment status tracking (pending/in_progress/completed)
+
+### 📦 Teslim Edilecekler:
+
+- [x] Reviewer dashboard UI ✅
+- [x] Assigned papers list ✅
+- [x] Review submission form ✅ (Detaylı puanlama ve yorumlar)
+- [x] Review status tracking ✅
+- [x] Performance statistics ✅
 
 ---
 
@@ -1276,12 +1322,20 @@ _[Decision System, Testing, Deploy]_
 
 | Hafta | Görev              | Durum | Tamamlanma |
 | ----- | ------------------ | ----- | ---------- |
-| 1     | Kurulum + Auth     | ⬜    | 0%         |
-| 2     | Database + Storage | ⬜    | 0%         |
-| 3     | Yazar Paneli       | ⬜    | 0%         |
-| 4     | Editör Paneli      | ⬜    | 0%         |
-| 5     | Hakem Paneli       | ⬜    | 0%         |
+| 1     | Kurulum + Auth     | ✅    | 100%       |
+| 2     | Database + Storage | ✅    | 100%       |
+| 3     | Yazar Paneli       | ✅    | 100%       |
+| 4     | Editör Paneli      | ✅    | 100%       |
+| 5     | Hakem Paneli       | ✅    | 100%       |
 | 6     | Deploy             | ⬜    | 0%         |
+
+**Not**:
+- Auth sistemi tamamlandı, rol seçimi eklendi
+- Papers, assignments, reviews, decisions tabloları hazır
+- Storage buckets ve policies hazır
+- Articles tablosu kullanılıyor (papers yerine şimdilik)
+- Editor paneli tamamlandı, hakem atama sistemi çalışıyor
+- Reviewer paneli tamamlandı, değerlendirme sistemi çalışıyor
 
 ---
 
@@ -1289,13 +1343,13 @@ _[Decision System, Testing, Deploy]_
 
 ### Minimum Viable Product (MVP):
 
-- [ ] ✅ Kullanıcı kaydı ve girişi
-- [ ] ✅ 4 rol sistemi (admin, editor, reviewer, author)
-- [ ] ✅ Makale yükleme (PDF)
-- [ ] ✅ Hakem ataması (manuel)
-- [ ] ✅ Değerlendirme formu (1-5 puan + yorum)
-- [ ] ✅ Editör karar sistemi
-- [ ] ✅ Status tracking
+- [x] ✅ Kullanıcı kaydı ve girişi (Shadcn UI ile)
+- [x] ✅ 4 rol sistemi (admin, editor, reviewer, author)
+- [x] ✅ Makale yükleme (PDF/Word desteği)
+- [x] ✅ Hakem ataması (manuel)
+- [x] ✅ Değerlendirme formu (1-5 puan + yorum)
+- [ ] ⬜ Editör karar sistemi
+- [x] ✅ Status tracking (Badge'lerle gösteriliyor)
 
 ---
 
@@ -1348,6 +1402,6 @@ git push origin main
 
 ---
 
-**Son Güncelleme**: 29 Eylül 2025  
-**Versiyon**: 1.0  
+**Son Güncelleme**: 5 Ekim 2025
+**Versiyon**: 1.5
 **Lisans**: MIT
