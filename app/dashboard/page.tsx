@@ -441,13 +441,6 @@ export default async function DashboardPage() {
 			break
 	}
 
-	async function handleSignOut() {
-		'use server'
-		const supabase = await createServerSupabaseClient()
-		await supabase.auth.signOut()
-		redirect('/auth/login')
-	}
-
 	return (
 		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
 			<div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -455,22 +448,15 @@ export default async function DashboardPage() {
 				<div className="mb-8">
 					<Card>
 						<CardHeader>
-							<div className="flex items-center justify-between">
-								<div>
-									<CardTitle className="text-2xl">Dashboard</CardTitle>
-									<CardDescription className="text-lg mt-2">Hoş geldiniz, {userData?.name}!</CardDescription>
-									<div className="mt-2">
-										<span className="text-sm text-gray-600">Email: {user.email}</span>
-										<span className="ml-4 text-sm text-gray-600">
-											Rol: <span className="font-semibold capitalize">{role}</span>
-										</span>
-									</div>
+							<div>
+								<CardTitle className="text-2xl">Dashboard</CardTitle>
+								<CardDescription className="text-lg mt-2">Hoş geldiniz, {userData?.name}!</CardDescription>
+								<div className="mt-2">
+									<span className="text-sm text-gray-600">Email: {user.email}</span>
+									<span className="ml-4 text-sm text-gray-600">
+										Rol: <span className="font-semibold capitalize">{role}</span>
+									</span>
 								</div>
-								<form action={handleSignOut}>
-									<Button variant="outline" type="submit">
-										Çıkış Yap
-									</Button>
-								</form>
 							</div>
 						</CardHeader>
 					</Card>

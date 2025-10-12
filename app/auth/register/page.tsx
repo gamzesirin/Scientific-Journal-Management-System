@@ -8,13 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Link from 'next/link'
 
 export default function RegisterPage() {
@@ -131,11 +125,10 @@ export default function RegisterPage() {
 									<SelectItem value="author">Yazar (Author)</SelectItem>
 									<SelectItem value="reviewer">Hakem (Reviewer)</SelectItem>
 									<SelectItem value="editor">Editör (Editor)</SelectItem>
+									<SelectItem value="admin">Admin</SelectItem>
 								</SelectContent>
 							</Select>
-							<p className="text-xs text-gray-500">
-								Sisteme hangi rol ile kayıt olmak istediğinizi seçin.
-							</p>
+							<p className="text-xs text-gray-500">Sisteme hangi rol ile kayıt olmak istediğinizi seçin.</p>
 						</div>
 
 						<Button type="submit" className="w-full" disabled={loading}>
