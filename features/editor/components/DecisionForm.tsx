@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle, XCircle, RotateCcw, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from '@/lib/toast'
 
 interface DecisionFormProps {
 	paperId: string
@@ -21,8 +22,6 @@ interface DecisionFormProps {
 export default function DecisionForm({ paperId, paperTitle, suggestedDecision, reviews }: DecisionFormProps) {
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
-	const [success, setSuccess] = useState<string | null>(null)
 
 	const [decisionType, setDecisionType] = useState<'accept' | 'reject' | 'revision'>(
 		(suggestedDecision as any) || 'revision'
@@ -32,7 +31,7 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 
 	const validateForm = () => {
 		if (!decisionReason || decisionReason.length < 50) {
-			setError('Karar gerekçesi en az 50 karakter olmalıdır')
+			toast.error('Eksik bilgi', 'Karar gerekçesi en az 50 karakter olmalıdır')
 			return false
 		}
 		return true
@@ -42,7 +41,6 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 		if (!validateForm()) return
 
 		setLoading(true)
-		setError(null)
 
 		try {
 			const supabase = createClient()
@@ -65,10 +63,10 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 
 			if (error) throw error
 
-			setSuccess('Karar taslağı kaydedildi')
+			toast.success('Taslak kaydedildi', 'Karar taslağınız başarıyla kaydedildi.')
 			setIsDraft(true)
 		} catch (err: any) {
-			setError(err.message || 'Taslak kaydedilirken bir hata oluştu')
+			toast.error('Hata', err.message || 'Taslak kaydedilirken bir hata oluştu')
 		} finally {
 			setLoading(false)
 		}
@@ -87,7 +85,6 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 		if (!window.confirm(confirmMessage)) return
 
 		setLoading(true)
-		setError(null)
 
 		try {
 			const supabase = createClient()
@@ -128,30 +125,52 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 				if (error) throw error
 			}
 
-			// Update paper status based on decision
-			const newStatus = decisionType === 'accept' ? 'accepted' : decisionType === 'reject' ? 'rejected' : 'under_review' // Keep under review for revision
+			// Update paper status based on decision using API
+			const newStatus =
+				decisionType === 'accept' ? 'accepted' :
+				decisionType === 'reject' ? 'rejected' :
+				'revision_requested'
 
-			const { error: paperError } = await supabase.from('articles').update({ status: newStatus }).eq('id', paperId)
+			const statusResponse = await fetch(`/api/articles/${paperId}/status`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ status: newStatus })
+			})
 
-			if (paperError) throw paperError
+			if (!statusResponse.ok) {
+				const errorData = await statusResponse.json()
+				console.error('Status update failed:', errorData)
+
+				// Check constraint hatası için özel mesaj
+				if (errorData.error === 'Database constraint error') {
+					throw new Error(
+						errorData.message ||
+							'Veritabanı hatası: revision_requested durumu desteklenmiyor. Lütfen fix-article-status-constraint.sql dosyasını çalıştırın.'
+					)
+				}
+
+				throw new Error(errorData.message || errorData.error || 'Makale durumu güncellenirken bir hata oluştu')
+			}
 
 			// TODO: Send notification email to author
 
-			setSuccess(
-				`Karar başarıyla kaydedildi: ${
-					decisionType === 'accept'
-						? 'Makale kabul edildi'
-						: decisionType === 'reject'
-						? 'Makale reddedildi'
-						: 'Revizyon talep edildi'
-				}`
-			)
+			const successMessage =
+				decisionType === 'accept'
+					? 'Makale kabul edildi'
+					: decisionType === 'reject'
+					? 'Makale reddedildi'
+					: 'Revizyon talep edildi'
+
+			toast.success('Karar kaydedildi!', successMessage)
 
 			setTimeout(() => {
 				router.push(`/editor/articles/${paperId}`)
-			}, 2000)
+				router.refresh()
+			}, 1500)
 		} catch (err: any) {
-			setError(err.message || 'Karar kaydedilirken bir hata oluştu')
+			toast.error('Hata', err.message || 'Karar kaydedilirken bir hata oluştu')
 		} finally {
 			setLoading(false)
 		}
@@ -164,20 +183,6 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 				<CardDescription>Hakem değerlendirmelerine dayanarak kararınızı belirtin</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-6">
-				{error && (
-					<Alert variant="destructive">
-						<AlertCircle className="h-4 w-4" />
-						<AlertDescription>{error}</AlertDescription>
-					</Alert>
-				)}
-
-				{success && (
-					<Alert className="bg-green-50 text-green-800 border-green-200">
-						<CheckCircle className="h-4 w-4" />
-						<AlertDescription>{success}</AlertDescription>
-					</Alert>
-				)}
-
 				{/* Decision Type */}
 				<div>
 					<Label>Karar Türü</Label>

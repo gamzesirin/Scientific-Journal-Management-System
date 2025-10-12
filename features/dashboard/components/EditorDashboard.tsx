@@ -46,12 +46,14 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 			name: article.author.name,
 			email: article.author.email,
 			affiliation: article.author.affiliation
-		} : undefined
+		} : undefined,
+		assignments: (article as any).assignments || []
 	})) || []
 
 	// Filter papers by status
 	const newSubmissions = papers.filter(p => p.status === 'submitted')
 	const underReview = papers.filter(p => p.status === 'under_review')
+	const revisionRequested = papers.filter(p => p.status === 'revision_requested')
 	const completed = papers.filter(p =>
 		p.status === 'accepted' || p.status === 'rejected' || p.status === 'published'
 	)
@@ -60,6 +62,7 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 	const stats = {
 		submitted: newSubmissions.length,
 		under_review: underReview.length,
+		revision_requested: revisionRequested.length,
 		accepted: papers.filter(p => p.status === 'accepted').length,
 		rejected: papers.filter(p => p.status === 'rejected').length,
 		published: papers.filter(p => p.status === 'published').length,
@@ -78,7 +81,7 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 			</Card>
 
 			{/* Quick Stats */}
-			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
 				<Card>
 					<CardHeader className="pb-2">
 						<CardTitle className="text-sm font-medium text-gray-600">Toplam</CardTitle>
@@ -103,6 +106,15 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 					</CardHeader>
 					<CardContent>
 						<p className="text-2xl font-bold text-yellow-600">{stats.under_review}</p>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-gray-600">Revizyon</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-2xl font-bold text-orange-600">{stats.revision_requested}</p>
 					</CardContent>
 				</Card>
 

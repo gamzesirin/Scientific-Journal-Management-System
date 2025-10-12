@@ -8,15 +8,15 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { format, addDays } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import { CalendarIcon, AlertCircle, User, Mail, Award, Clock, CheckCircle } from 'lucide-react'
+import { CalendarIcon, User, Mail, Award, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Reviewer, AssignmentFormData } from '../types/editor.types'
+import { toast } from '@/lib/toast'
 
 interface AssignReviewerFormProps {
 	paperId: string
@@ -33,8 +33,6 @@ export default function AssignReviewerForm({
 }: AssignReviewerFormProps) {
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
-	const [success, setSuccess] = useState<string | null>(null)
 	const [selectedReviewers, setSelectedReviewers] = useState<string[]>([])
 	const [deadline, setDeadline] = useState<Date | undefined>(addDays(new Date(), 14))
 	const [message, setMessage] = useState('')
@@ -55,17 +53,16 @@ export default function AssignReviewerForm({
 
 	const handleSubmit = async () => {
 		if (selectedReviewers.length === 0) {
-			setError('Lütfen en az bir hakem seçin')
+			toast.error('Eksik bilgi', 'Lütfen en az bir hakem seçin')
 			return
 		}
 
 		if (!deadline) {
-			setError('Lütfen bir son tarih belirleyin')
+			toast.error('Eksik bilgi', 'Lütfen bir son tarih belirleyin')
 			return
 		}
 
 		setLoading(true)
-		setError(null)
 
 		try {
 			const supabase = createClient()
@@ -113,12 +110,12 @@ export default function AssignReviewerForm({
 			// TODO: Send notification emails to reviewers
 			// This would typically be done through a backend service
 
-			setSuccess(`${selectedReviewers.length} hakem başarıyla atandı!`)
+			toast.success('Başarılı!', `${selectedReviewers.length} hakem başarıyla atandı!`)
 			setTimeout(() => {
 				router.push(`/editor/articles/${paperId}`)
-			}, 2000)
+			}, 1500)
 		} catch (err: any) {
-			setError(err.message || 'Hakem atanırken bir hata oluştu')
+			toast.error('Hata', err.message || 'Hakem atanırken bir hata oluştu')
 		} finally {
 			setLoading(false)
 		}
@@ -126,20 +123,6 @@ export default function AssignReviewerForm({
 
 	return (
 		<div className="space-y-6">
-			{error && (
-				<Alert variant="destructive">
-					<AlertCircle className="h-4 w-4" />
-					<AlertDescription>{error}</AlertDescription>
-				</Alert>
-			)}
-
-			{success && (
-				<Alert className="bg-green-50 text-green-800 border-green-200">
-					<CheckCircle className="h-4 w-4" />
-					<AlertDescription>{success}</AlertDescription>
-				</Alert>
-			)}
-
 			{/* Paper Info */}
 			<Card>
 				<CardHeader>

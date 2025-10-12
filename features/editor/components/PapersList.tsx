@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { FileText, User, Calendar, Users, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { Paper } from '../types/editor.types'
+import { PDFCombinedActionsSimple as PDFCombinedActions } from '@/components/common/pdf-actions-simple'
 
 interface PapersListProps {
 	papers: Paper[]
@@ -12,11 +13,23 @@ interface PapersListProps {
 	description?: string
 }
 
-export default function PapersList({ papers, title = "Makaleler", description }: PapersListProps) {
+export default function PapersList({ papers, title = 'Makaleler', description }: PapersListProps) {
+	// Dosya URL'sinden gerçek dosya adını çıkar
+	const getFileNameFromUrl = (url: string) => {
+		try {
+			const urlObj = new URL(url)
+			const pathParts = urlObj.pathname.split('/')
+			return decodeURIComponent(pathParts[pathParts.length - 1])
+		} catch {
+			return 'makale.pdf'
+		}
+	}
+
 	const getStatusBadge = (status: string) => {
 		const statusConfig = {
 			submitted: { label: 'Gönderildi', variant: 'secondary' as const },
 			under_review: { label: 'İnceleniyor', variant: 'default' as const },
+			revision_requested: { label: 'Revizyon İstendi', variant: 'default' as const },
 			accepted: { label: 'Kabul Edildi', variant: 'success' as const },
 			rejected: { label: 'Reddedildi', variant: 'destructive' as const },
 			published: { label: 'Yayınlandı', variant: 'outline' as const }
@@ -26,18 +39,22 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 
 	const getReviewProgress = (paper: Paper) => {
 		if (!paper.assignments || paper.assignments.length === 0) {
-			return { label: 'Hakem Atanmamış', color: 'text-gray-500' }
+			return { label: 'Hakem Atanmamış', color: 'text-red-500', icon: '⚠️' }
 		}
 
-		const completed = paper.assignments.filter(a => a.status === 'completed').length
+		const completed = paper.assignments.filter((a) => a.status === 'completed').length
 		const total = paper.assignments.length
+		const pending = paper.assignments.filter((a) => a.status === 'pending').length
+		const inProgress = paper.assignments.filter((a) => a.status === 'in_progress').length
 
 		if (completed === total) {
-			return { label: `${completed}/${total} Tamamlandı`, color: 'text-green-600' }
+			return { label: `✓ ${completed}/${total} Tamamlandı`, color: 'text-green-600', icon: '✓' }
 		} else if (completed > 0) {
-			return { label: `${completed}/${total} Tamamlandı`, color: 'text-yellow-600' }
+			return { label: `${completed}/${total} Tamamlandı`, color: 'text-yellow-600', icon: '⏳' }
+		} else if (inProgress > 0) {
+			return { label: `${total} Hakem Atandı (Devam Ediyor)`, color: 'text-blue-600', icon: '🔄' }
 		} else {
-			return { label: `0/${total} Bekliyor`, color: 'text-gray-600' }
+			return { label: `${total} Hakem Atandı (Değerlendirme Bekleniyor)`, color: 'text-gray-600', icon: '⏰' }
 		}
 	}
 
@@ -49,9 +66,7 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 			</CardHeader>
 			<CardContent>
 				{papers.length === 0 ? (
-					<div className="text-center py-8 text-gray-500">
-						Henüz makale bulunmamaktadır.
-					</div>
+					<div className="text-center py-8 text-gray-500">Henüz makale bulunmamaktadır.</div>
 				) : (
 					<div className="space-y-4">
 						{/* Mobile View */}
@@ -75,22 +90,17 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 												</div>
 
 												<div className="flex flex-wrap gap-2">
-													<Badge variant={status.variant}>
-														{status.label}
-													</Badge>
-													<span className={`text-sm ${progress.color}`}>
-														{progress.label}
-													</span>
+													<Badge variant={status.variant}>{status.label}</Badge>
+													<span className={`text-sm ${progress.color}`}>{progress.label}</span>
 												</div>
 
 												<div className="flex flex-wrap gap-2">
 													{paper.file_url && (
-														<Button size="sm" variant="outline" asChild>
-															<a href={paper.file_url} target="_blank" rel="noopener noreferrer">
-																<FileText className="h-4 w-4 mr-1" />
-																PDF
-															</a>
-														</Button>
+														<PDFCombinedActions
+															fileUrl={paper.file_url}
+															fileName={getFileNameFromUrl(paper.file_url)}
+															size="sm"
+														/>
 													)}
 													{paper.id ? (
 														<Link href={`/editor/articles/${paper.id}`}>
@@ -128,7 +138,7 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 										<TableHead>Yazar</TableHead>
 										<TableHead>Tarih</TableHead>
 										<TableHead>Durum</TableHead>
-										<TableHead>İnceleme</TableHead>
+										<TableHead>Hakem Ataması</TableHead>
 										<TableHead className="text-right">İşlemler</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -142,9 +152,7 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 												<TableCell>
 													<div className="max-w-md">
 														<p className="font-medium line-clamp-1">{paper.title}</p>
-														<p className="text-sm text-gray-500 line-clamp-1 mt-1">
-															{paper.abstract}
-														</p>
+														<p className="text-sm text-gray-500 line-clamp-1 mt-1">{paper.abstract}</p>
 													</div>
 												</TableCell>
 												<TableCell>
@@ -166,23 +174,19 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 													</div>
 												</TableCell>
 												<TableCell>
-													<Badge variant={status.variant}>
-														{status.label}
-													</Badge>
+													<Badge variant={status.variant}>{status.label}</Badge>
 												</TableCell>
 												<TableCell>
-													<span className={`text-sm ${progress.color}`}>
-														{progress.label}
-													</span>
+													<span className={`text-sm ${progress.color}`}>{progress.label}</span>
 												</TableCell>
 												<TableCell className="text-right">
 													<div className="flex justify-end gap-2">
 														{paper.file_url && (
-															<Button size="sm" variant="outline" asChild>
-																<a href={paper.file_url} target="_blank" rel="noopener noreferrer">
-																	<FileText className="h-4 w-4" />
-																</a>
-															</Button>
+															<PDFCombinedActions
+																fileUrl={paper.file_url}
+																fileName={getFileNameFromUrl(paper.file_url)}
+																size="sm"
+															/>
 														)}
 														{paper.id ? (
 															<Link href={`/editor/articles/${paper.id}`}>
@@ -197,9 +201,7 @@ export default function PapersList({ papers, title = "Makaleler", description }:
 														)}
 														{paper.status === 'submitted' && paper.id && (
 															<Link href={`/editor/articles/${paper.id}/assign`}>
-																<Button size="sm">
-																	Hakem Ata
-																</Button>
+																<Button size="sm">Hakem Ata</Button>
 															</Link>
 														)}
 													</div>

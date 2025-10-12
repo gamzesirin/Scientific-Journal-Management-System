@@ -23,6 +23,7 @@ export default function AuthorDashboard({ user, articles }: AuthorDashboardProps
 		total: articles?.length || 0,
 		submitted: articles?.filter((a) => a.status === 'submitted').length || 0,
 		under_review: articles?.filter((a) => a.status === 'under_review').length || 0,
+		revision_requested: articles?.filter((a) => a.status === 'revision_requested').length || 0,
 		accepted: articles?.filter((a) => a.status === 'accepted').length || 0,
 		rejected: articles?.filter((a) => a.status === 'rejected').length || 0,
 		published: articles?.filter((a) => a.status === 'published').length || 0
@@ -40,7 +41,7 @@ export default function AuthorDashboard({ user, articles }: AuthorDashboardProps
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+						<div className="grid grid-cols-2 md:grid-cols-6 gap-4">
 							<Card>
 								<CardHeader className="pb-2">
 									<CardDescription>Toplam</CardDescription>
@@ -57,6 +58,12 @@ export default function AuthorDashboard({ user, articles }: AuthorDashboardProps
 								<CardHeader className="pb-2">
 									<CardDescription>İncelemede</CardDescription>
 									<CardTitle className="text-3xl text-yellow-600">{stats.under_review}</CardTitle>
+								</CardHeader>
+							</Card>
+							<Card>
+								<CardHeader className="pb-2">
+									<CardDescription>Revizyon</CardDescription>
+									<CardTitle className="text-3xl text-orange-600">{stats.revision_requested}</CardTitle>
 								</CardHeader>
 							</Card>
 							<Card>

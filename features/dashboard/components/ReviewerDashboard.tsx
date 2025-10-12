@@ -34,7 +34,7 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 	// İstatistikleri hesapla
 	const stats = {
 		pending:
-			assignedPapers?.filter((p) => !reviews?.find((r) => r.article_id === p.id && r.status === 'submitted')).length ||
+			assignedPapers?.filter((p) => !reviews?.find((r) => r.article_id === (p.article_id || p.id) && r.status === 'submitted')).length ||
 			0,
 		inProgress: reviews?.filter((r) => r.status === 'draft').length || 0,
 		completed: reviews?.filter((r) => r.status === 'submitted').length || 0,
@@ -42,7 +42,7 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 		overdue:
 			assignedPapers?.filter((p) => {
 				if (!p.deadline) return false
-				const review = reviews?.find((r) => r.article_id === p.id)
+				const review = reviews?.find((r) => r.article_id === (p.article_id || p.id))
 				if (review?.status === 'submitted') return false
 				return new Date(p.deadline) < new Date()
 			}).length || 0
@@ -151,7 +151,8 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 						<CardContent>
 							{assignedPapers &&
 							assignedPapers.filter((p) => {
-								const review = reviews?.find((r) => r.article_id === p.id)
+								const paperId = p.article_id || p.id
+								const review = reviews?.find((r) => r.article_id === paperId)
 								if (review?.status === 'submitted') return false
 								if (!p.deadline) return false
 								const daysRemaining = Math.ceil(
@@ -162,7 +163,8 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 								<div className="space-y-3">
 									{assignedPapers
 										.filter((p) => {
-											const review = reviews?.find((r) => r.article_id === p.id)
+											const paperId = p.article_id || p.id
+											const review = reviews?.find((r) => r.article_id === paperId)
 											if (review?.status === 'submitted') return false
 											if (!p.deadline) return false
 											const daysRemaining = Math.ceil(
@@ -171,14 +173,15 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 											return daysRemaining <= 3
 										})
 										.map((paper) => {
+											const paperId = paper.article_id || paper.id
 											const daysRemaining = Math.ceil(
 												(new Date(paper.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
 											)
-											const review = reviews?.find((r) => r.article_id === paper.id)
+											const review = reviews?.find((r) => r.article_id === paperId)
 
 											return (
 												<div
-													key={paper.id}
+													key={paperId}
 													className="flex items-center justify-between p-3 border rounded-lg bg-orange-50"
 												>
 													<div className="flex-1">
@@ -189,7 +192,7 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 																: `${daysRemaining} gün kaldı`}
 														</p>
 													</div>
-													<Link href={`/reviews/${paper.id}`}>
+													<Link href={`/reviews/${paperId}`}>
 														<Button size="sm" variant={daysRemaining < 0 ? 'destructive' : 'default'}>
 															{review?.status === 'draft' ? 'Devam Et' : 'Değerlendir'}
 														</Button>
@@ -216,7 +219,7 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 							{reviews && reviews.length > 0 ? (
 								<div className="space-y-3">
 									{reviews.slice(0, 5).map((review) => {
-										const paper = assignedPapers?.find((p) => p.id === review.article_id)
+										const paper = assignedPapers?.find((p) => (p.article_id || p.id) === review.article_id)
 										return (
 											<div key={review.id} className="flex items-center justify-between py-2 border-b last:border-0">
 												<div>

@@ -16,6 +16,7 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 		const totalPapers = papers.length
 		const pendingReview = papers.filter(p => p.status === 'submitted').length
 		const underReview = papers.filter(p => p.status === 'under_review').length
+		const revisionRequested = papers.filter(p => p.status === 'revision_requested').length
 		const reviewed = papers.filter(p =>
 			p.reviews?.some(r => r.status === 'submitted')
 		).length
@@ -51,6 +52,7 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 			totalPapers,
 			pendingReview,
 			underReview,
+			revisionRequested,
 			reviewed,
 			accepted,
 			rejected,
@@ -178,6 +180,23 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 										style={{
 											width: `${currentStats.totalPapers > 0
 												? (currentStats.underReview / currentStats.totalPapers) * 100
+												: 0}%`
+										}}
+									/>
+								</div>
+							</div>
+
+							<div>
+								<div className="flex justify-between items-center mb-1">
+									<span className="text-sm font-medium">Revizyon İstendi</span>
+									<Badge className="bg-orange-500">{currentStats.revisionRequested}</Badge>
+								</div>
+								<div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+									<div
+										className="h-full bg-orange-500"
+										style={{
+											width: `${currentStats.totalPapers > 0
+												? (currentStats.revisionRequested / currentStats.totalPapers) * 100
 												: 0}%`
 										}}
 									/>
@@ -329,12 +348,16 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 									<Badge variant={
 										paper.status === 'submitted' ? 'secondary' :
 										paper.status === 'under_review' ? 'default' :
+										paper.status === 'revision_requested' ? 'outline' :
 										paper.status === 'accepted' ? 'success' :
 										paper.status === 'rejected' ? 'destructive' :
 										'outline'
-									}>
+									}
+									className={paper.status === 'revision_requested' ? 'bg-orange-500 text-white' : ''}
+									>
 										{paper.status === 'submitted' ? 'Bekliyor' :
 										 paper.status === 'under_review' ? 'İnceleniyor' :
+										 paper.status === 'revision_requested' ? 'Revizyon' :
 										 paper.status === 'accepted' ? 'Kabul' :
 										 paper.status === 'rejected' ? 'Red' :
 										 'Yayınlandı'}

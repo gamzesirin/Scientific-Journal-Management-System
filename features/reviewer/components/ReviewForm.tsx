@@ -9,9 +9,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Star, AlertCircle, Save, Send } from 'lucide-react'
+import { Star, Save, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Review, ReviewFormData } from '../types/review.types'
+import { toast } from '@/lib/toast'
 
 interface ReviewFormProps {
 	paperId: string
@@ -22,8 +23,6 @@ interface ReviewFormProps {
 export default function ReviewForm({ paperId, assignmentId, existingReview }: ReviewFormProps) {
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
-	const [success, setSuccess] = useState<string | null>(null)
 
 	const [formData, setFormData] = useState<ReviewFormData>({
 		overall_score: existingReview?.overall_score || 3,
@@ -48,7 +47,6 @@ export default function ReviewForm({ paperId, assignmentId, existingReview }: Re
 
 	const handleSaveDraft = async () => {
 		setLoading(true)
-		setError(null)
 
 		try {
 			const supabase = createClient()
@@ -80,10 +78,9 @@ export default function ReviewForm({ paperId, assignmentId, existingReview }: Re
 				if (error) throw error
 			}
 
-			setSuccess('Taslak başarıyla kaydedildi!')
-			setTimeout(() => setSuccess(null), 3000)
+			toast.success('Taslak kaydedildi', 'Değerlendirme taslağınız başarıyla kaydedildi.')
 		} catch (err: any) {
-			setError(err.message || 'Taslak kaydedilirken bir hata oluştu')
+			toast.error('Hata', err.message || 'Taslak kaydedilirken bir hata oluştu')
 		} finally {
 			setLoading(false)
 		}
@@ -91,12 +88,11 @@ export default function ReviewForm({ paperId, assignmentId, existingReview }: Re
 
 	const handleSubmitReview = async () => {
 		if (!formData.comments || formData.comments.length < 100) {
-			setError('Değerlendirme yorumu en az 100 karakter olmalıdır')
+			toast.error('Eksik bilgi', 'Değerlendirme yorumu en az 100 karakter olmalıdır')
 			return
 		}
 
 		setLoading(true)
-		setError(null)
 
 		try {
 			const supabase = createClient()
@@ -138,12 +134,47 @@ export default function ReviewForm({ paperId, assignmentId, existingReview }: Re
 				})
 				.eq('id', assignmentId)
 
-			setSuccess('Değerlendirme başarıyla gönderildi!')
+			// Check if all assignments for this article are completed
+			const { data: allAssignments } = await supabase
+				.from('assignments')
+				.select('id, status')
+				.eq('article_id', paperId)
+
+			const allCompleted = allAssignments?.every((a) => a.status === 'completed')
+
+			if (allCompleted) {
+				// Get all submitted reviews for this article
+				const { data: allReviews } = await supabase
+					.from('reviews')
+					.select('recommendation')
+					.eq('article_id', paperId)
+					.eq('status', 'submitted')
+
+				if (allReviews && allReviews.length > 0) {
+					// Check if all reviewers recommend acceptance
+					const allAccept = allReviews.every((r) => r.recommendation === 'accept')
+					const allReject = allReviews.every((r) => r.recommendation === 'reject')
+
+					// Update article status based on unanimous decision
+					let newArticleStatus = 'under_review' // Default: keep under review if mixed
+
+					if (allAccept) {
+						newArticleStatus = 'accepted'
+					} else if (allReject) {
+						newArticleStatus = 'rejected'
+					}
+
+					// Update article status
+					await supabase.from('articles').update({ status: newArticleStatus }).eq('id', paperId)
+				}
+			}
+
+			toast.success('Gönderildi!', 'Değerlendirmeniz başarıyla gönderildi.')
 			setTimeout(() => {
 				router.push('/dashboard')
-			}, 2000)
+			}, 1500)
 		} catch (err: any) {
-			setError(err.message || 'Değerlendirme gönderilirken bir hata oluştu')
+			toast.error('Hata', err.message || 'Değerlendirme gönderilirken bir hata oluştu')
 		} finally {
 			setLoading(false)
 		}
@@ -153,19 +184,6 @@ export default function ReviewForm({ paperId, assignmentId, existingReview }: Re
 
 	return (
 		<div className="space-y-6">
-			{error && (
-				<Alert variant="destructive">
-					<AlertCircle className="h-4 w-4" />
-					<AlertDescription>{error}</AlertDescription>
-				</Alert>
-			)}
-
-			{success && (
-				<Alert className="bg-green-50 text-green-800 border-green-200">
-					<AlertDescription>{success}</AlertDescription>
-				</Alert>
-			)}
-
 			{/* Overall Score */}
 			<Card>
 				<CardHeader>

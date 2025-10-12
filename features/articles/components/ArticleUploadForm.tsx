@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -8,20 +8,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from '@/lib/toast'
 
 export default function ArticleUploadForm() {
 	const [loading, setLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
-	const [success, setSuccess] = useState(false)
+	const formRef = useRef<HTMLFormElement>(null)
 	const router = useRouter()
 	const supabase = createClient()
 
 	async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()
 		try {
-			setError(null)
 			setLoading(true)
 
 			const formData = new FormData(e.currentTarget)
@@ -37,7 +35,7 @@ export default function ArticleUploadForm() {
 			} = await supabase.auth.getUser()
 
 			if (!user) {
-				setError('Oturum bulunamadı. Lütfen tekrar giriş yapın.')
+				toast.error('Oturum bulunamadı', 'Lütfen tekrar giriş yapın.')
 				return
 			}
 
@@ -80,28 +78,21 @@ export default function ArticleUploadForm() {
 				throw insertError
 			}
 
-			setSuccess(true)
+			// Formu temizle
+			formRef.current?.reset()
+
+			toast.success('Başarılı!', 'Makaleniz başarıyla yüklendi.')
 			setTimeout(() => {
 				router.push('/dashboard')
 				router.refresh()
-			}, 2000)
+			}, 1500)
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Makale yüklenirken bir hata oluştu'
-			setError(message)
+			toast.error('Hata!', message)
 			console.error('Upload error:', err)
 		} finally {
 			setLoading(false)
 		}
-	}
-
-	if (success) {
-		return (
-			<Alert className="border-green-200 bg-green-50">
-				<AlertDescription className="text-green-800">
-					Makaleniz başarıyla yüklendi! Yönlendiriliyorsunuz...
-				</AlertDescription>
-			</Alert>
-		)
 	}
 
 	return (
@@ -111,13 +102,7 @@ export default function ArticleUploadForm() {
 				<CardDescription>Makalenizi sisteme yüklemek için aşağıdaki formu doldurun</CardDescription>
 			</CardHeader>
 			<CardContent>
-				{error && (
-					<Alert variant="destructive" className="mb-4">
-						<AlertDescription>{error}</AlertDescription>
-					</Alert>
-				)}
-
-				<form onSubmit={handleSubmit} className="space-y-6">
+				<form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
 					<div className="space-y-2">
 						<Label htmlFor="title">Makale Başlığı *</Label>
 						<Input id="title" name="title" placeholder="Makale başlığını girin" required />

@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Calendar, Clock, FileText, Eye, Edit, CheckCircle } from 'lucide-react'
+import { Calendar, Clock, Edit, CheckCircle } from 'lucide-react'
 import { PaperWithAssignment, Review } from '../types/review.types'
+import { PDFCombinedActionsSimple as PDFCombinedActions } from '@/components/common/pdf-actions-simple'
 
 interface AssignedPapersListProps {
 	papers: PaperWithAssignment[]
@@ -19,6 +20,9 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 		if (review.status === 'submitted') return { status: 'submitted', label: 'Tamamlandı', variant: 'success' as const }
 		return { status: 'draft', label: 'Taslak', variant: 'default' as const }
 	}
+
+	// Helper to get the correct article ID from paper object
+	const getPaperId = (paper: any) => paper.article_id || paper.id
 
 	const getDaysRemaining = (deadline: string) => {
 		const now = new Date()
@@ -42,7 +46,7 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 						{/* Mobile View */}
 						<div className="lg:hidden space-y-4">
 							{papers.map((paper, index) => {
-								const paperId = paper.article_id || paper.id
+								const paperId = getPaperId(paper)
 								const reviewStatus = getReviewStatus(paperId)
 								const review = reviews.find((r) => r.article_id === paperId)
 								const daysRemaining = paper.deadline ? getDaysRemaining(paper.deadline) : null
@@ -67,18 +71,12 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 
 												<div className="flex flex-wrap gap-2">
 													{paper.file_url && (
-														<Button size="sm" variant="outline" asChild>
-															<a href={paper.file_url} target="_blank" rel="noopener noreferrer">
-																<FileText className="h-4 w-4 mr-1" />
-																PDF
-															</a>
-														</Button>
+														<PDFCombinedActions fileUrl={paper.file_url} fileName={`${paper.title}.pdf`} size="sm" />
 													)}
 													{reviewStatus.status === 'submitted' ? (
 														<Link href={`/reviews/${paperId}`}>
 															<Button size="sm" variant="outline">
-																<Eye className="h-4 w-4 mr-1" />
-																Görüntüle
+																Detay
 															</Button>
 														</Link>
 													) : (
@@ -111,7 +109,7 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 								</TableHeader>
 								<TableBody>
 									{papers.map((paper, index) => {
-										const paperId = paper.article_id || paper.id
+										const paperId = getPaperId(paper)
 										const reviewStatus = getReviewStatus(paperId)
 										const review = reviews.find((r) => r.article_id === paperId)
 										const daysRemaining = paper.deadline ? getDaysRemaining(paper.deadline) : null
@@ -154,16 +152,12 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 												<TableCell className="text-right">
 													<div className="flex justify-end gap-2">
 														{paper.file_url && (
-															<Button size="sm" variant="outline" asChild>
-																<a href={paper.file_url} target="_blank" rel="noopener noreferrer">
-																	<FileText className="h-4 w-4" />
-																</a>
-															</Button>
+															<PDFCombinedActions fileUrl={paper.file_url} fileName={`${paper.title}.pdf`} size="sm" />
 														)}
 														{reviewStatus.status === 'submitted' ? (
 															<Link href={`/reviews/${paperId}`}>
 																<Button size="sm" variant="outline">
-																	<Eye className="h-4 w-4" />
+																	Detay
 																</Button>
 															</Link>
 														) : (

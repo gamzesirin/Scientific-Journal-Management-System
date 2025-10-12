@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Users, FileText, UserCheck, Shield } from 'lucide-react'
 import { User } from '@supabase/supabase-js'
 import { AdminStats } from '@/features/dashboard/types/dashboard.types'
+import Link from 'next/link'
 
 interface UserData {
 	id: string
@@ -107,7 +108,7 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
 					<CardTitle>Makaleler (Duruma Göre)</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+					<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
 						<div className="text-center p-4 bg-gray-50 rounded-lg">
 							<p className="text-2xl font-bold text-gray-600">{stats.papersByStatus.submitted}</p>
 							<p className="text-sm text-gray-600 mt-1">Gönderildi</p>
@@ -115,6 +116,10 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
 						<div className="text-center p-4 bg-gray-50 rounded-lg">
 							<p className="text-2xl font-bold text-yellow-600">{stats.papersByStatus.under_review}</p>
 							<p className="text-sm text-gray-600 mt-1">İncelemede</p>
+						</div>
+						<div className="text-center p-4 bg-gray-50 rounded-lg">
+							<p className="text-2xl font-bold text-orange-600">{stats.papersByStatus.revision_requested}</p>
+							<p className="text-sm text-gray-600 mt-1">Revizyon İstendi</p>
 						</div>
 						<div className="text-center p-4 bg-gray-50 rounded-lg">
 							<p className="text-2xl font-bold text-green-600">{stats.papersByStatus.accepted}</p>
@@ -139,11 +144,21 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
 				</CardHeader>
 				<CardContent>
 					<div className="flex flex-wrap gap-2">
-						<Button>Kullanıcı Yönetimi</Button>
-						<Button variant="outline">Makale Yönetimi</Button>
-						<Button variant="outline">Sistem Ayarları</Button>
-						<Button variant="outline">Raporlar</Button>
-						<Button variant="outline">Yedekleme</Button>
+						<Link href="/admin/users">
+							<Button>Kullanıcı Yönetimi</Button>
+						</Link>
+						<Link href="/admin/articles">
+							<Button variant="outline">Makale Yönetimi</Button>
+						</Link>
+						<Link href="/admin/settings">
+							<Button variant="outline">Sistem Ayarları</Button>
+						</Link>
+						<Link href="/admin/reports">
+							<Button variant="outline">Raporlar</Button>
+						</Link>
+						<Link href="/admin/backup">
+							<Button variant="outline">Yedekleme</Button>
+						</Link>
 					</div>
 				</CardContent>
 			</Card>
