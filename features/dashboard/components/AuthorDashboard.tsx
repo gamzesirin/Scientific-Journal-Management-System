@@ -1,7 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ArticleUploadForm from '@/features/articles/components/ArticleUploadForm'
 import ArticleList from '@/features/articles/components/ArticleList'
+import ProfileUpdateForm from '@/features/auth/components/ProfileUpdateForm'
 import { User } from '@supabase/supabase-js'
 import { Article } from '@/features/articles/types/article.types'
 
@@ -10,6 +12,7 @@ interface UserData {
 	email: string
 	name: string
 	role: string
+	affiliation?: string
 }
 
 interface AuthorDashboardProps {
@@ -18,7 +21,7 @@ interface AuthorDashboardProps {
 	articles: Article[]
 }
 
-export default function AuthorDashboard({ user, articles }: AuthorDashboardProps) {
+export default function AuthorDashboard({ user, userData, articles }: AuthorDashboardProps) {
 	const stats = {
 		total: articles?.length || 0,
 		submitted: articles?.filter((a) => a.status === 'submitted').length || 0,
@@ -87,15 +90,29 @@ export default function AuthorDashboard({ user, articles }: AuthorDashboardProps
 				</Card>
 			</div>
 
-			{/* Upload Form */}
-			<div className="mb-8">
-				<ArticleUploadForm />
-			</div>
+			{/* Tabs for different sections */}
+			<Tabs defaultValue="articles" className="space-y-6">
+				<TabsList className="grid w-full max-w-lg grid-cols-3">
+					<TabsTrigger value="articles">Makaleler</TabsTrigger>
+					<TabsTrigger value="upload">Yeni Makale</TabsTrigger>
+					<TabsTrigger value="profile">Profilim</TabsTrigger>
+				</TabsList>
 
-			<Separator className="my-8" />
+				{/* Articles Tab */}
+				<TabsContent value="articles" className="space-y-6">
+					<ArticleList articles={articles} userRole="author" userId={user.id} />
+				</TabsContent>
 
-			{/* Article List */}
-			<ArticleList articles={articles} userRole="author" userId={user.id} />
+				{/* Upload Tab */}
+				<TabsContent value="upload" className="space-y-6">
+					<ArticleUploadForm />
+				</TabsContent>
+
+				{/* Profile Tab */}
+				<TabsContent value="profile" className="space-y-6">
+					<ProfileUpdateForm userData={userData} />
+				</TabsContent>
+			</Tabs>
 		</>
 	)
 }
