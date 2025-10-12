@@ -30,6 +30,15 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function ArticleList({ articles = [], userRole = 'author', userId }: ArticleListProps) {
+	// Role göre detay linkini belirle
+	const getDetailLink = (articleId: string) => {
+		if (userRole === 'editor') {
+			return `/editor/articles/${articleId}`
+		} else if (userRole === 'admin') {
+			return `/admin/articles` // veya admin için özel bir sayfa
+		}
+		return `/articles/${articleId}`
+	}
 
 	if (articles.length === 0) {
 		return (
@@ -40,7 +49,9 @@ export default function ArticleList({ articles = [], userRole = 'author', userId
 				</CardHeader>
 				<CardContent>
 					<p className="text-center text-muted-foreground py-8">
-						{userRole === 'author' ? 'Henüz makale yüklemediniz. Yeni bir makale yüklemek için yukarıdaki formu kullanın.' : 'Henüz sistemde makale bulunmamaktadır.'}
+						{userRole === 'author'
+							? 'Henüz makale yüklemediniz. Yeni bir makale yüklemek için yukarıdaki formu kullanın.'
+							: 'Henüz sistemde makale bulunmamaktadır.'}
 					</p>
 				</CardContent>
 			</Card>
@@ -91,7 +102,9 @@ export default function ArticleList({ articles = [], userRole = 'author', userId
 									<TableCell>{new Date(article.created_at).toLocaleDateString('tr-TR')}</TableCell>
 									<TableCell className="text-right">
 										<Button asChild variant="outline" size="sm">
-											<Link href={`/articles/${article.id}`}>Görüntüle</Link>
+											<Link href={getDetailLink(article.id)}>
+												{userRole === 'editor' || userRole === 'admin' ? 'Detay' : 'Görüntüle'}
+											</Link>
 										</Button>
 									</TableCell>
 								</TableRow>

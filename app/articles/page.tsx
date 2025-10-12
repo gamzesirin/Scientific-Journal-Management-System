@@ -116,15 +116,7 @@ export default async function ArticlesPage() {
 				</div>
 
 				{/* Articles List */}
-				<Card>
-					<CardHeader>
-						<CardTitle>Makale Listesi</CardTitle>
-						<CardDescription>Toplam {articles.length} makale</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<ArticleList articles={articles} />
-					</CardContent>
-				</Card>
+				<ArticleList articles={articles} userRole={userData?.role} userId={user.id} />
 			</div>
 		</div>
 	)

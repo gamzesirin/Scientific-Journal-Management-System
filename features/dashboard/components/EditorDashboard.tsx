@@ -10,6 +10,7 @@ import { User } from '@supabase/supabase-js'
 import { Article } from '@/features/articles/types/article.types'
 import PapersList from '@/features/editor/components/PapersList'
 import EditorStatistics from '@/features/editor/components/EditorStatistics'
+import ProfileUpdateForm from '@/features/auth/components/ProfileUpdateForm'
 import { Paper } from '@/features/editor/types/editor.types'
 
 interface UserData {
@@ -17,6 +18,7 @@ interface UserData {
 	email: string
 	name: string
 	role: string
+	affiliation?: string
 }
 
 interface EditorDashboardProps {
@@ -29,43 +31,44 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 	const [activeTab, setActiveTab] = useState('overview')
 
 	// Transform Article[] to Paper[] for editor components
-	const papers: Paper[] = allPapers?.map(article => ({
-		id: article.id,
-		title: article.title,
-		abstract: article.abstract,
-		keywords: article.keywords,
-		file_url: article.file_url,
-		author_id: article.author_id,
-		status: article.status as Paper['status'],
-		assigned_editor_id: article.assigned_editor_id,
-		submitted_at: article.created_at,
-		created_at: article.created_at,
-		updated_at: article.updated_at,
-		author: article.author ? {
-			id: article.author_id,
-			name: article.author.name,
-			email: article.author.email,
-			affiliation: article.author.affiliation
-		} : undefined,
-		assignments: (article as any).assignments || []
-	})) || []
+	const papers: Paper[] =
+		allPapers?.map((article) => ({
+			id: article.id,
+			title: article.title,
+			abstract: article.abstract,
+			keywords: article.keywords,
+			file_url: article.file_url,
+			author_id: article.author_id,
+			status: article.status as Paper['status'],
+			assigned_editor_id: article.assigned_editor_id,
+			submitted_at: article.created_at,
+			created_at: article.created_at,
+			updated_at: article.updated_at,
+			author: article.author
+				? {
+						id: article.author_id,
+						name: article.author.name,
+						email: article.author.email,
+						affiliation: article.author.affiliation
+				  }
+				: undefined,
+			assignments: (article as any).assignments || []
+		})) || []
 
 	// Filter papers by status
-	const newSubmissions = papers.filter(p => p.status === 'submitted')
-	const underReview = papers.filter(p => p.status === 'under_review')
-	const revisionRequested = papers.filter(p => p.status === 'revision_requested')
-	const completed = papers.filter(p =>
-		p.status === 'accepted' || p.status === 'rejected' || p.status === 'published'
-	)
+	const newSubmissions = papers.filter((p) => p.status === 'submitted')
+	const underReview = papers.filter((p) => p.status === 'under_review')
+	const revisionRequested = papers.filter((p) => p.status === 'revision_requested')
+	const completed = papers.filter((p) => p.status === 'accepted' || p.status === 'rejected' || p.status === 'published')
 
 	// Quick stats
 	const stats = {
 		submitted: newSubmissions.length,
 		under_review: underReview.length,
 		revision_requested: revisionRequested.length,
-		accepted: papers.filter(p => p.status === 'accepted').length,
-		rejected: papers.filter(p => p.status === 'rejected').length,
-		published: papers.filter(p => p.status === 'published').length,
+		accepted: papers.filter((p) => p.status === 'accepted').length,
+		rejected: papers.filter((p) => p.status === 'rejected').length,
+		published: papers.filter((p) => p.status === 'published').length,
 		total: papers.length
 	}
 
@@ -148,27 +151,20 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 
 			{/* Tabs for different views */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-				<TabsList className="grid w-full max-w-lg grid-cols-4">
+				<TabsList className="grid w-full max-w-2xl grid-cols-5">
 					<TabsTrigger value="overview">Genel Bakış</TabsTrigger>
 					<TabsTrigger value="new">Yeni Gönderimler</TabsTrigger>
 					<TabsTrigger value="in-review">İncelemede</TabsTrigger>
 					<TabsTrigger value="statistics">İstatistikler</TabsTrigger>
+					<TabsTrigger value="profile">Profilim</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="overview">
-					<PapersList
-						papers={papers}
-						title="Tüm Makaleler"
-						description="Sistemdeki tüm makalelerin listesi"
-					/>
+					<PapersList papers={papers} title="Tüm Makaleler" description="Sistemdeki tüm makalelerin listesi" />
 				</TabsContent>
 
 				<TabsContent value="new">
-					<PapersList
-						papers={newSubmissions}
-						title="Yeni Gönderimler"
-						description="Hakem ataması bekleyen makaleler"
-					/>
+					<PapersList papers={newSubmissions} title="Yeni Gönderimler" description="Hakem ataması bekleyen makaleler" />
 				</TabsContent>
 
 				<TabsContent value="in-review">
@@ -181,6 +177,10 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 
 				<TabsContent value="statistics">
 					<EditorStatistics papers={papers} />
+				</TabsContent>
+
+				<TabsContent value="profile">
+					<ProfileUpdateForm userData={userData} />
 				</TabsContent>
 			</Tabs>
 		</>

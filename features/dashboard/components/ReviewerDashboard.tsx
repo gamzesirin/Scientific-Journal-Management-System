@@ -11,6 +11,7 @@ import { User } from '@supabase/supabase-js'
 import { Article } from '@/features/articles/types/article.types'
 import AssignedPapersList from '@/features/reviewer/components/AssignedPapersList'
 import ReviewStatistics from '@/features/reviewer/components/ReviewStatistics'
+import ProfileUpdateForm from '@/features/auth/components/ProfileUpdateForm'
 import { Review } from '@/features/reviewer/types/review.types'
 
 interface UserData {
@@ -19,6 +20,7 @@ interface UserData {
 	name: string
 	role: string
 	expertise_areas?: string[]
+	affiliation?: string
 }
 
 interface ReviewerDashboardProps {
@@ -34,8 +36,9 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 	// İstatistikleri hesapla
 	const stats = {
 		pending:
-			assignedPapers?.filter((p) => !reviews?.find((r) => r.article_id === (p.article_id || p.id) && r.status === 'submitted')).length ||
-			0,
+			assignedPapers?.filter(
+				(p) => !reviews?.find((r) => r.article_id === (p.article_id || p.id) && r.status === 'submitted')
+			).length || 0,
 		inProgress: reviews?.filter((r) => r.status === 'draft').length || 0,
 		completed: reviews?.filter((r) => r.status === 'submitted').length || 0,
 		total: assignedPapers?.length || 0,
@@ -132,10 +135,11 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 
 			{/* Tabs for different views */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-				<TabsList className="grid w-full max-w-md grid-cols-3">
+				<TabsList className="grid w-full max-w-2xl grid-cols-4">
 					<TabsTrigger value="overview">Genel Bakış</TabsTrigger>
 					<TabsTrigger value="assignments">Atamalar</TabsTrigger>
 					<TabsTrigger value="statistics">İstatistikler</TabsTrigger>
+					<TabsTrigger value="profile">Profilim</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="overview" className="space-y-4">
@@ -249,6 +253,10 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 
 				<TabsContent value="statistics">
 					<ReviewStatistics papers={assignedPapers || []} reviews={reviews || []} />
+				</TabsContent>
+
+				<TabsContent value="profile">
+					<ProfileUpdateForm userData={userData} />
 				</TabsContent>
 			</Tabs>
 		</>
