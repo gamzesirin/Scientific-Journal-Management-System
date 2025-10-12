@@ -41,11 +41,17 @@ export default function LoginPage() {
 				console.error('Login error:', error)
 				// Daha spesifik hata mesajları
 				if (error.message.includes('Invalid login credentials')) {
-					setError('Email veya şifre hatalı')
-				} else if (error.message.includes('Failed to fetch')) {
-					setError('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin.')
+					setError('Email veya şifre hatalı. Lütfen tekrar deneyin.')
+				} else if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+					setError(
+						'⚠️ Supabase bağlantı hatası! ' +
+						'Projeniz duraklamış olabilir. ' +
+						'https://supabase.com/dashboard adresinden projenizi "Resume" edin.'
+					)
 				} else if (error.message.includes('Email not confirmed')) {
 					setError('Email adresiniz henüz doğrulanmamış. Lütfen email kutunuzu kontrol edin.')
+				} else if (error.message.includes('timeout')) {
+					setError('İstek zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edin.')
 				} else {
 					setError(error.message || 'Giriş yapılırken bir hata oluştu')
 				}
@@ -54,9 +60,18 @@ export default function LoginPage() {
 				router.push('/dashboard')
 				router.refresh()
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Unexpected error:', error)
-			setError('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.')
+
+			// Network hatası kontrolü
+			if (error.message?.includes('fetch') || error.message?.includes('network')) {
+				setError(
+					'Bağlantı hatası! Supabase projeniz duraklamış olabilir. ' +
+					'Dashboard\'dan projenizi kontrol edin: https://supabase.com/dashboard'
+				)
+			} else {
+				setError('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.')
+			}
 		} finally {
 			setLoading(false)
 		}

@@ -22,7 +22,7 @@ export default async function ArticlesPage() {
 		.single()
 
 	// Get articles based on role
-	let articles = []
+	let articles: any[] = []
 
 	if (userData?.role === 'author') {
 		// Authors see only their articles
@@ -33,15 +33,57 @@ export default async function ArticlesPage() {
 			.order('created_at', { ascending: false })
 		articles = data || []
 	} else if (userData?.role === 'editor' || userData?.role === 'admin') {
-		// Editors and admins see all articles
-		const { data } = await supabase
+		// Editör filtresi: sadece kendilerine atanan makaleler
+		// Admin filtresi: tüm makaleler
+		const isEditor = userData?.role === 'editor'
+		
+		let query = supabase
 			.from('articles')
 			.select(`
 				*,
 				users!articles_author_id_fkey(name, email)
 			`)
-			.order('created_at', { ascending: false })
-		articles = data || []
+		
+		if (isEditor) {
+			query = query.eq('assigned_editor_id', user.id)
+		}
+		
+		const { data: articlesWithAuthor, error: joinError } = await query.order('created_at', { ascending: false })
+
+		// Eğer join başarılı olduysa
+		if (!joinError && articlesWithAuthor) {
+			articles = articlesWithAuthor
+		} else {
+			// Join başarısız olduysa, makaleleri ve yazarları ayrı çek
+			console.log('Join failed, trying separate queries...', joinError)
+
+			let simpleQuery = supabase
+				.from('articles')
+				.select('*')
+			
+			if (isEditor) {
+				simpleQuery = simpleQuery.eq('assigned_editor_id', user.id)
+			}
+			
+			const { data: articlesData } = await simpleQuery.order('created_at', { ascending: false })
+
+			if (articlesData && articlesData.length > 0) {
+				// Yazar bilgilerini ayrı çek
+				const authorIds = [...new Set(articlesData.map(a => a.author_id).filter(Boolean))]
+				const { data: authors } = await supabase
+					.from('users')
+					.select('id, name, email')
+					.in('id', authorIds)
+
+				const authorsMap = new Map(authors?.map(a => [a.id, a]) || [])
+
+				// Yazar bilgilerini makalelere ekle
+				articles = articlesData.map(article => ({
+					...article,
+					users: authorsMap.get(article.author_id)
+				}))
+			}
+		}
 	} else {
 		// Reviewers and others redirect to dashboard
 		redirect('/dashboard')

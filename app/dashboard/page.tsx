@@ -56,25 +56,61 @@ export default async function DashboardPage() {
 				.eq('author_id', user.id)
 				.order('created_at', { ascending: false })
 
-			dashboardData.articles = authorArticles || []
+			// Get all decisions to correct article status
+			const { data: allDecisionsDebug } = await supabase
+				.from('decisions')
+				.select('*')
+
+			console.log('ALL Decisions (no filter):', allDecisionsDebug)
+
+			const { data: authorDecisions } = await supabase
+				.from('decisions')
+				.select('article_id, decision_type, status')
+				.eq('status', 'final')
+
+			console.log('Filtered Decisions (status=final):', authorDecisions)
+
+			// Create a map of article_id -> decision_type
+			const authorDecisionsByArticle = new Map(authorDecisions?.map(d => [d.article_id, d.decision_type]) || [])
+
+			// Correct article statuses based on decisions
+			dashboardData.articles = (authorArticles || []).map(paper => {
+				let correctedStatus = paper.status
+				const decision = authorDecisionsByArticle.get(paper.id)
+
+				if (decision === 'revision' && paper.status === 'under_review') {
+					correctedStatus = 'revision_requested'
+				} else if (decision === 'accept' && paper.status !== 'accepted' && paper.status !== 'published') {
+					correctedStatus = 'accepted'
+				} else if (decision === 'reject' && paper.status !== 'rejected') {
+					correctedStatus = 'rejected'
+				}
+
+				return {
+					...paper,
+					status: correctedStatus
+				}
+			})
 			break
 
-		case 'editor':
-			// Tüm makaleleri al (editör hepsini görebilir)
-			const { data: allPapers, error: editorError } = await supabase
-				.from('articles')
-				.select(`
-					*,
-					author:users!articles_author_id_fkey(name, email, affiliation)
-				`)
-				.order('created_at', { ascending: false })
+	case 'editor':
+		// SADECE bu editöre atanan makaleleri al
+		const { data: allPapers, error: editorError } = await supabase
+			.from('articles')
+			.select(`
+				*,
+				author:users!articles_author_id_fkey(name, email, affiliation)
+			`)
+			.eq('assigned_editor_id', user.id)
+			.order('created_at', { ascending: false })
 
-			// Eğer join'li query çalışmazsa, basit query dene
-			if (editorError) {
-				const { data: simplePapers, error: simpleError } = await supabase
-					.from('articles')
-					.select('*')
-					.order('created_at', { ascending: false })
+		// Eğer join'li query çalışmazsa, basit query dene
+		if (editorError) {
+			const { data: simplePapers, error: simpleError } = await supabase
+				.from('articles')
+				.select('*')
+				.eq('assigned_editor_id', user.id)
+				.order('created_at', { ascending: false })
 
 				// Simple query ile gelen makaleleri format et
 				if (simplePapers) {
@@ -87,15 +123,153 @@ export default async function DashboardPage() {
 
 					const authorsMap = new Map(authors?.map(a => [a.id, a]) || [])
 
-					dashboardData.allPapers = simplePapers.map(paper => ({
-						...paper,
-						author: authorsMap.get(paper.author_id)
-					}))
+					// Assignment bilgilerini ayrı çek
+					const { data: allAssignments } = await supabase
+						.from('assignments')
+						.select('*')
+
+					// Review bilgilerini ayrı çek - tüm reviews
+					const { data: allReviews } = await supabase
+						.from('reviews')
+						.select('*')
+
+					// Create a map of assignment_id -> review status for completed reviews
+					const reviewsByAssignment = new Map(
+						allReviews?.filter(r => r.status === 'submitted').map(r => [r.assignment_id, r.status]) || []
+					)
+
+					// Update assignment status based on reviews
+					const correctedAssignments = allAssignments?.map(assignment => {
+						// If review is submitted but assignment is not completed, correct it
+						if (reviewsByAssignment.has(assignment.id) && assignment.status !== 'completed') {
+							return { ...assignment, status: 'completed' as const }
+						}
+						return assignment
+					}) || []
+
+					// Group assignments by article_id
+					const assignmentsByArticle = new Map()
+					correctedAssignments.forEach(assignment => {
+						if (!assignmentsByArticle.has(assignment.article_id)) {
+							assignmentsByArticle.set(assignment.article_id, [])
+						}
+						assignmentsByArticle.get(assignment.article_id).push(assignment)
+					})
+
+					// Group reviews by article_id
+					const reviewsByArticle = new Map()
+					allReviews?.forEach(review => {
+						if (!reviewsByArticle.has(review.article_id)) {
+							reviewsByArticle.set(review.article_id, [])
+						}
+						reviewsByArticle.get(review.article_id).push(review)
+					})
+
+					// Get all decisions to correct article status
+					const { data: allDecisions } = await supabase
+						.from('decisions')
+						.select('article_id, decision_type, status')
+						.eq('status', 'final')
+
+					// Create a map of article_id -> decision_type
+					const decisionsByArticle = new Map(allDecisions?.map(d => [d.article_id, d.decision_type]) || [])
+
+					dashboardData.allPapers = simplePapers.map(paper => {
+						// Correct article status based on decision
+						let correctedStatus = paper.status
+						const decision = decisionsByArticle.get(paper.id)
+
+						if (decision === 'revision' && paper.status === 'under_review') {
+							correctedStatus = 'revision_requested'
+						} else if (decision === 'accept' && paper.status !== 'accepted' && paper.status !== 'published') {
+							correctedStatus = 'accepted'
+						} else if (decision === 'reject' && paper.status !== 'rejected') {
+							correctedStatus = 'rejected'
+						}
+
+						return {
+							...paper,
+							status: correctedStatus,
+							author: authorsMap.get(paper.author_id),
+							assignments: assignmentsByArticle.get(paper.id) || [],
+							reviews: reviewsByArticle.get(paper.id) || []
+						}
+					})
 				} else {
 					dashboardData.allPapers = []
 				}
 			} else {
-				dashboardData.allPapers = allPapers || []
+				// Başarılı join ile gelen makaleler için assignments'ı ayrı çek
+				const { data: allAssignments } = await supabase
+					.from('assignments')
+					.select('*')
+
+				// Review bilgilerini ayrı çek - tüm reviews
+				const { data: allReviews } = await supabase
+					.from('reviews')
+					.select('*')
+
+				// Create a map of assignment_id -> review status for completed reviews
+				const reviewsByAssignment = new Map(
+					allReviews?.filter(r => r.status === 'submitted').map(r => [r.assignment_id, r.status]) || []
+				)
+
+				// Update assignment status based on reviews
+				const correctedAssignments = allAssignments?.map(assignment => {
+					// If review is submitted but assignment is not completed, correct it
+					if (reviewsByAssignment.has(assignment.id) && assignment.status !== 'completed') {
+						return { ...assignment, status: 'completed' as const }
+					}
+					return assignment
+				}) || []
+
+				// Group assignments by article_id
+				const assignmentsByArticle = new Map()
+				correctedAssignments.forEach(assignment => {
+					if (!assignmentsByArticle.has(assignment.article_id)) {
+						assignmentsByArticle.set(assignment.article_id, [])
+					}
+					assignmentsByArticle.get(assignment.article_id).push(assignment)
+				})
+
+				// Group reviews by article_id
+				const reviewsByArticle = new Map()
+				allReviews?.forEach(review => {
+					if (!reviewsByArticle.has(review.article_id)) {
+						reviewsByArticle.set(review.article_id, [])
+					}
+					reviewsByArticle.get(review.article_id).push(review)
+				})
+
+				// Get all decisions to correct article status
+				const { data: allDecisions } = await supabase
+					.from('decisions')
+					.select('article_id, decision_type, status')
+					.eq('status', 'final')
+
+				// Create a map of article_id -> decision_type
+				const decisionsByArticle = new Map(allDecisions?.map(d => [d.article_id, d.decision_type]) || [])
+
+				dashboardData.allPapers = (allPapers || []).map(paper => {
+					// Correct article status based on decision
+					let correctedStatus = paper.status
+					const decision = decisionsByArticle.get(paper.id)
+
+					if (decision === 'revision' && paper.status === 'under_review') {
+						correctedStatus = 'revision_requested'
+					} else if (decision === 'accept' && paper.status !== 'accepted' && paper.status !== 'published') {
+						correctedStatus = 'accepted'
+					} else if (decision === 'reject' && paper.status !== 'rejected') {
+						correctedStatus = 'rejected'
+					}
+
+					return {
+						...paper,
+						status: correctedStatus,
+						assignments: assignmentsByArticle.get(paper.id) || [],
+						reviews: reviewsByArticle.get(paper.id) || []
+					}
+				})
 			}
 			break
 
@@ -105,7 +279,7 @@ export default async function DashboardPage() {
 				.from('assignments')
 				.select(`
 					*,
-					articles:paper_id (
+					articles:article_id (
 						id,
 						title,
 						abstract,
@@ -127,7 +301,7 @@ export default async function DashboardPage() {
 			if (assignmentsWithArticles && !assignmentsError) {
 				dashboardData.assignedPapers = assignmentsWithArticles.map(assignment => ({
 					...assignment.articles,
-					paper_id: assignment.paper_id,
+					article_id: assignment.article_id,
 					deadline: assignment.deadline,
 					assigned_at: assignment.assigned_at,
 					assignment_status: assignment.status,
@@ -146,15 +320,15 @@ export default async function DashboardPage() {
 				console.log('Reviewer assignments:', assignments)
 				console.log('Reviewer user ID:', user.id)
 
-				// Paper ID'leri topla ve articles'ları çek
+				// Article ID'leri topla ve articles'ları çek
 				if (assignments && assignments.length > 0) {
-					const paperIds = [...new Set(assignments.map(a => a.paper_id).filter(Boolean))]
-					console.log('Paper IDs to fetch:', paperIds)
+					const articleIds = [...new Set(assignments.map(a => a.article_id).filter(Boolean))]
+					console.log('Article IDs to fetch:', articleIds)
 
 					const { data: articles, error: articlesError } = await supabase
 						.from('articles')
 						.select('*')
-						.in('id', paperIds)
+						.in('id', articleIds)
 
 					console.log('Articles fetched:', articles)
 					console.log('Articles error:', articlesError)
@@ -163,16 +337,16 @@ export default async function DashboardPage() {
 
 					// Transform assignments to match expected format
 					dashboardData.assignedPapers = assignments.map(assignment => {
-						const article = articlesMap.get(assignment.paper_id)
+						const article = articlesMap.get(assignment.article_id)
 						console.log(`Assignment ${assignment.id} -> Article:`, article)
 						if (!article) {
-							console.log(`Article not found for paper_id: ${assignment.paper_id}`)
+							console.log(`Article not found for article_id: ${assignment.article_id}`)
 							return null
 						}
 
 						return {
 							...article,
-							paper_id: assignment.paper_id,  // Keep paper_id for reviews
+							article_id: assignment.article_id,
 							deadline: assignment.deadline,
 							assigned_at: assignment.assigned_at,
 							assignment_status: assignment.status,
@@ -237,6 +411,7 @@ export default async function DashboardPage() {
 			interface StatusCounts {
 				submitted: number
 				under_review: number
+				revision_requested: number
 				accepted: number
 				rejected: number
 				published: number
@@ -249,6 +424,7 @@ export default async function DashboardPage() {
 			}, {
 				submitted: 0,
 				under_review: 0,
+				revision_requested: 0,
 				accepted: 0,
 				rejected: 0,
 				published: 0
