@@ -1264,13 +1264,17 @@ export async function downloadPaperFile(fileUrl: string) {
 ### 🔵 Tamamlanan Özellikler:
 
 - [x] Editor Dashboard Layout (Shadcn Card + Badge kullanımı)
-- [x] Makale listesi görüntüleme (tüm makaleler)
+- [x] Makale listesi görüntüleme (sadece atanan makaleler - güvenlik güncellemesi ✅)
 - [x] İstatistik kartları (Gönderildi, İnceleniyor, Kabul, Red, Yayınlandı)
 - [x] Makale detay sayfası (/editor/papers/[id])
 - [x] Makale durumu güncelleme sistemi
 - [x] Hakem atama sayfası (/editor/papers/[id]/assign)
 - [x] Hakem seçimi ve deadline belirleme
 - [x] Responsive ve modern UI
+- [x] **Editör Yetkilendirme Sistemi** ✅
+  - Her editör sadece kendisine atanan makaleleri görür
+  - URL manipülasyonu ile erişim engellendi
+  - Admin panelinde editör atama mekanizması
 
 ### 📦 Teslim Edilecekler:
 
@@ -1312,9 +1316,30 @@ export async function downloadPaperFile(fileUrl: string) {
 ## 📅 HAFTA 6: POLISH VE DEPLOY
 
 **Hedef**: Canlıya alma  
-**Süre**: 7 gün
+**Süre**: 7 gün  
+**Durum**: 🔄 Devam Ediyor
 
-_[Decision System, Testing, Deploy]_
+### 🔵 Tamamlanan Özellikler:
+
+- [x] **Admin Paneli İyileştirmeleri** ✅
+  - Editör atama mekanizması (/admin/articles)
+  - Atanmış editör görüntüleme
+  - Editör değiştirme/kaldırma özellikleri
+  - Editör listesi yükleme
+- [x] **Güvenlik ve Yetkilendirme** ✅
+  - Editör bazlı makale filtreleme
+  - Dashboard yetkilendirme
+  - Articles list filtreleme
+  - URL manipülasyon koruması
+  - Role-based access control iyileştirmeleri
+
+### 🔵 Devam Eden Görevler:
+
+- [ ] Decision System (Editör karar mekanizması)
+- [ ] Email bildirimleri
+- [ ] Testing ve QA
+- [ ] Production deployment
+- [ ] Dokümantasyon tamamlama
 
 ---
 
@@ -1330,12 +1355,17 @@ _[Decision System, Testing, Deploy]_
 | 6     | Deploy             | ⬜    | 0%         |
 
 **Not**:
+
 - Auth sistemi tamamlandı, rol seçimi eklendi
 - Papers, assignments, reviews, decisions tabloları hazır
 - Storage buckets ve policies hazır
 - Articles tablosu kullanılıyor (papers yerine şimdilik)
 - Editor paneli tamamlandı, hakem atama sistemi çalışıyor
 - Reviewer paneli tamamlandı, değerlendirme sistemi çalışıyor
+- **Güvenlik Güncellemesi (12 Ekim 2025)**: Editör yetkilendirme sistemi eklendi
+  - Editörler artık sadece assigned_editor_id ile kendilerine atanan makaleleri görüyor
+  - Admin panelinde editör atama/değiştirme özellği eklendi
+  - Dashboard, articles list ve detay sayfalarında filtreleme aktif
 
 ---
 
