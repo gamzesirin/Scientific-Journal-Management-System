@@ -40,6 +40,12 @@ export default async function EditorDecisionPage({ params }: PageProps) {
 		notFound()
 	}
 
+	// Editörler sadece kendilerine atanan makalelere karar verebilir (adminler hepsine verebilir)
+	if (userData?.role === 'editor' && paper.assigned_editor_id !== user.id) {
+		console.error('Editor not authorized to make decision for this paper:', user.id, paper.assigned_editor_id)
+		redirect('/dashboard')
+	}
+
 	// Get author info separately if paper exists
 	let author = null
 	if (paper.author_id) {

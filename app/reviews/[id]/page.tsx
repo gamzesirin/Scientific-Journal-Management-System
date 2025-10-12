@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, FileText, User, Calendar, Clock } from 'lucide-react'
 import ReviewForm from '@/features/reviewer/components/ReviewForm'
+import { PDFDownloadSection } from '@/components/common/pdf-download-section'
 
 interface PageProps {
 	params: Promise<{
@@ -83,6 +84,19 @@ export default async function ReviewPage({ params }: PageProps) {
 		.eq('reviewer_id', user.id)
 		.single()
 
+	// Dosya URL'sinden gerçek dosya adını çıkar
+	const getFileNameFromUrl = (url: string) => {
+		try {
+			const urlObj = new URL(url)
+			const pathParts = urlObj.pathname.split('/')
+			return decodeURIComponent(pathParts[pathParts.length - 1])
+		} catch {
+			return 'makale.pdf'
+		}
+	}
+
+	const actualFileName = paperWithAuthor.file_url ? getFileNameFromUrl(paperWithAuthor.file_url) : 'makale.pdf'
+
 	// Calculate days remaining
 	const getDaysRemaining = () => {
 		if (!assignment.deadline) return null
@@ -150,12 +164,7 @@ export default async function ReviewPage({ params }: PageProps) {
 								{isSubmitted && <Badge variant="success">Değerlendirme Tamamlandı</Badge>}
 								{isOverdue && !isSubmitted && <Badge variant="destructive">Süresi Geçmiş</Badge>}
 								{paperWithAuthor.file_url && (
-									<Button size="sm" variant="outline" asChild>
-										<a href={paperWithAuthor.file_url} target="_blank" rel="noopener noreferrer">
-											<FileText className="h-4 w-4 mr-2" />
-											PDF'i Görüntüle
-										</a>
-									</Button>
+									<PDFDownloadSection fileUrl={paperWithAuthor.file_url} fileName={actualFileName} />
 								)}
 							</div>
 						</div>

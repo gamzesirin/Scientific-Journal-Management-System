@@ -8,18 +8,16 @@ import ArticleList from '@/features/articles/components/ArticleList'
 
 export default async function ArticlesPage() {
 	const supabase = await createServerSupabaseClient()
-	const { data: { user } } = await supabase.auth.getUser()
+	const {
+		data: { user }
+	} = await supabase.auth.getUser()
 
 	if (!user) {
 		redirect('/auth/login')
 	}
 
 	// Get user data with role
-	const { data: userData } = await supabase
-		.from('users')
-		.select('*')
-		.eq('id', user.id)
-		.single()
+	const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).single()
 
 	// Get articles based on role
 	let articles: any[] = []
@@ -36,18 +34,16 @@ export default async function ArticlesPage() {
 		// Editör filtresi: sadece kendilerine atanan makaleler
 		// Admin filtresi: tüm makaleler
 		const isEditor = userData?.role === 'editor'
-		
-		let query = supabase
-			.from('articles')
-			.select(`
+
+		let query = supabase.from('articles').select(`
 				*,
 				users!articles_author_id_fkey(name, email)
 			`)
-		
+
 		if (isEditor) {
 			query = query.eq('assigned_editor_id', user.id)
 		}
-		
+
 		const { data: articlesWithAuthor, error: joinError } = await query.order('created_at', { ascending: false })
 
 		// Eğer join başarılı olduysa
@@ -57,28 +53,23 @@ export default async function ArticlesPage() {
 			// Join başarısız olduysa, makaleleri ve yazarları ayrı çek
 			console.log('Join failed, trying separate queries...', joinError)
 
-			let simpleQuery = supabase
-				.from('articles')
-				.select('*')
-			
+			let simpleQuery = supabase.from('articles').select('*')
+
 			if (isEditor) {
 				simpleQuery = simpleQuery.eq('assigned_editor_id', user.id)
 			}
-			
+
 			const { data: articlesData } = await simpleQuery.order('created_at', { ascending: false })
 
 			if (articlesData && articlesData.length > 0) {
 				// Yazar bilgilerini ayrı çek
-				const authorIds = [...new Set(articlesData.map(a => a.author_id).filter(Boolean))]
-				const { data: authors } = await supabase
-					.from('users')
-					.select('id, name, email')
-					.in('id', authorIds)
+				const authorIds = [...new Set(articlesData.map((a) => a.author_id).filter(Boolean))]
+				const { data: authors } = await supabase.from('users').select('id, name, email').in('id', authorIds)
 
-				const authorsMap = new Map(authors?.map(a => [a.id, a]) || [])
+				const authorsMap = new Map(authors?.map((a) => [a.id, a]) || [])
 
 				// Yazar bilgilerini makalelere ekle
-				articles = articlesData.map(article => ({
+				articles = articlesData.map((article) => ({
 					...article,
 					users: authorsMap.get(article.author_id)
 				}))
@@ -111,8 +102,7 @@ export default async function ArticlesPage() {
 						<p className="text-gray-600 mt-2">
 							{userData?.role === 'author'
 								? 'Gönderdiğiniz makaleleri görüntüleyin ve yönetin'
-								: 'Sistemdeki tüm makaleleri görüntüleyin'
-							}
+								: 'Sistemdeki tüm makaleleri görüntüleyin'}
 						</p>
 					</div>
 					{userData?.role === 'author' && (
@@ -129,9 +119,7 @@ export default async function ArticlesPage() {
 				<Card>
 					<CardHeader>
 						<CardTitle>Makale Listesi</CardTitle>
-						<CardDescription>
-							Toplam {articles.length} makale
-						</CardDescription>
+						<CardDescription>Toplam {articles.length} makale</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<ArticleList articles={articles} />

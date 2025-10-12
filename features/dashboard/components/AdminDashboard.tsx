@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Users, FileText, UserCheck, Shield } from 'lucide-react'
+import { Users, FileText, UserCheck, Shield, UserCog, ArrowRight } from 'lucide-react'
 import { User } from '@supabase/supabase-js'
 import { AdminStats } from '@/features/dashboard/types/dashboard.types'
 import Link from 'next/link'
@@ -137,19 +137,62 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
 				</CardContent>
 			</Card>
 
-			{/* Quick Actions */}
+			{/* Priority Actions - Editör Atama */}
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+				<Card className="border-2 border-blue-200 bg-blue-50/50">
+					<CardHeader>
+						<div className="flex items-center gap-2">
+							<UserCog className="h-5 w-5 text-blue-600" />
+							<CardTitle className="text-blue-900">Editör Atama</CardTitle>
+						</div>
+						<CardDescription>Makalelere editör atayın ve yönetin</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<p className="text-sm text-gray-600 mb-4">
+							Gönderilen makaleleri editörlere atayarak inceleme sürecini başlatın. Her makale için uygun editörü
+							seçebilir ve iş yükünü dengeleyebilirsiniz.
+						</p>
+						<Link href="/admin/articles">
+							<Button className="w-full" size="lg">
+								<UserCog className="h-4 w-4 mr-2" />
+								Editör Atama Sayfasına Git
+								<ArrowRight className="h-4 w-4 ml-2" />
+							</Button>
+						</Link>
+					</CardContent>
+				</Card>
+
+				<Card className="border-2 border-purple-200 bg-purple-50/50">
+					<CardHeader>
+						<div className="flex items-center gap-2">
+							<Users className="h-5 w-5 text-purple-600" />
+							<CardTitle className="text-purple-900">Kullanıcı Yönetimi</CardTitle>
+						</div>
+						<CardDescription>Sistemdeki kullanıcıları yönetin</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<p className="text-sm text-gray-600 mb-4">
+							Editörler, hakemler ve yazarları yönetin. Kullanıcı rollerini değiştirin ve hesap durumlarını kontrol
+							edin.
+						</p>
+						<Link href="/admin/users">
+							<Button className="w-full" variant="outline" size="lg">
+								<Users className="h-4 w-4 mr-2" />
+								Kullanıcı Yönetimi
+								<ArrowRight className="h-4 w-4 ml-2" />
+							</Button>
+						</Link>
+					</CardContent>
+				</Card>
+			</div>
+
+			{/* Other Actions */}
 			<Card>
 				<CardHeader>
-					<CardTitle>Hızlı İşlemler</CardTitle>
+					<CardTitle>Diğer İşlemler</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<div className="flex flex-wrap gap-2">
-						<Link href="/admin/users">
-							<Button>Kullanıcı Yönetimi</Button>
-						</Link>
-						<Link href="/admin/articles">
-							<Button variant="outline">Makale Yönetimi</Button>
-						</Link>
 						<Link href="/admin/settings">
 							<Button variant="outline">Sistem Ayarları</Button>
 						</Link>

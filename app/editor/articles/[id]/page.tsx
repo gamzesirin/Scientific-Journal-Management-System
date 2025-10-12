@@ -17,6 +17,7 @@ import {
 	XCircle,
 	AlertCircle
 } from 'lucide-react'
+import { PDFDownloadSection } from '@/components/common/pdf-download-section'
 
 interface PageProps {
 	params: Promise<{
@@ -51,6 +52,12 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 		notFound()
 	}
 
+	// Editörler sadece kendilerine atanan makaleleri görebilir (adminler hepsini görebilir)
+	if (userData?.role === 'editor' && paper.assigned_editor_id !== user.id) {
+		console.error('Editor not authorized for this paper:', user.id, paper.assigned_editor_id)
+		redirect('/dashboard')
+	}
+
 	// Get author info separately if paper exists
 	let author = null
 	if (paper.author_id) {
@@ -64,9 +71,32 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 	}
 
 	// Use paperWithAuthor for the rest of the component
-	const paperWithAuthor = {
+	let paperWithAuthor = {
 		...paper,
 		author
+	}
+
+	// Get decision to correct article status
+	const { data: paperDecision } = await supabase
+		.from('decisions')
+		.select('decision_type, status')
+		.eq('article_id', paperId)
+		.eq('status', 'final')
+		.single()
+
+	// Correct article status based on decision
+	if (paperDecision) {
+		if (paperDecision.decision_type === 'revision' && paperWithAuthor.status === 'under_review') {
+			paperWithAuthor = { ...paperWithAuthor, status: 'revision_requested' }
+		} else if (
+			paperDecision.decision_type === 'accept' &&
+			paperWithAuthor.status !== 'accepted' &&
+			paperWithAuthor.status !== 'published'
+		) {
+			paperWithAuthor = { ...paperWithAuthor, status: 'accepted' }
+		} else if (paperDecision.decision_type === 'reject' && paperWithAuthor.status !== 'rejected') {
+			paperWithAuthor = { ...paperWithAuthor, status: 'rejected' }
+		}
 	}
 
 	// Get assignments first without join
@@ -113,11 +143,25 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 	// Get decision if exists
 	const { data: decision } = await supabase.from('decisions').select('*').eq('article_id', paperId).single()
 
+	// Dosya URL'sinden gerçek dosya adını çıkar
+	const getFileNameFromUrl = (url: string) => {
+		try {
+			const urlObj = new URL(url)
+			const pathParts = urlObj.pathname.split('/')
+			return decodeURIComponent(pathParts[pathParts.length - 1])
+		} catch {
+			return 'makale.pdf'
+		}
+	}
+
+	const actualFileName = paperWithAuthor.file_url ? getFileNameFromUrl(paperWithAuthor.file_url) : 'makale.pdf'
+
 	// Status configuration
 	const getStatusBadge = (status: string) => {
 		const statusConfig = {
 			submitted: { label: 'Gönderildi', variant: 'secondary' as const },
 			under_review: { label: 'İnceleniyor', variant: 'default' as const },
+			revision_requested: { label: 'Revizyon İstendi', variant: 'default' as const },
 			accepted: { label: 'Kabul Edildi', variant: 'success' as const },
 			rejected: { label: 'Reddedildi', variant: 'destructive' as const },
 			published: { label: 'Yayınlandı', variant: 'outline' as const }
@@ -157,12 +201,7 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 						</div>
 						<div className="flex gap-2">
 							{paperWithAuthor.file_url && (
-								<Button variant="outline" asChild>
-									<a href={paperWithAuthor.file_url} target="_blank" rel="noopener noreferrer">
-										<FileText className="h-4 w-4 mr-2" />
-										PDF Görüntüle
-									</a>
-								</Button>
+								<PDFDownloadSection fileUrl={paperWithAuthor.file_url} fileName={actualFileName} />
 							)}
 							{paperWithAuthor.status === 'submitted' && (
 								<Link href={`/editor/articles/${paperId}/assign`}>

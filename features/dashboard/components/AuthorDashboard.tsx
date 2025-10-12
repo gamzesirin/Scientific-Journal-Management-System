@@ -36,12 +36,10 @@ export default function AuthorDashboard({ user, articles }: AuthorDashboardProps
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-3xl">Yazar Paneli</CardTitle>
-						<CardDescription className="text-lg mt-2">
-							Makalelerinizi yönetin ve yeni makale gönderin
-						</CardDescription>
+						<CardDescription className="text-lg mt-2">Makalelerinizi yönetin ve yeni makale gönderin</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+						<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
 							<Card>
 								<CardHeader className="pb-2">
 									<CardDescription>Toplam</CardDescription>
@@ -70,6 +68,12 @@ export default function AuthorDashboard({ user, articles }: AuthorDashboardProps
 								<CardHeader className="pb-2">
 									<CardDescription>Kabul</CardDescription>
 									<CardTitle className="text-3xl text-green-600">{stats.accepted}</CardTitle>
+								</CardHeader>
+							</Card>
+							<Card>
+								<CardHeader className="pb-2">
+									<CardDescription>Reddedildi</CardDescription>
+									<CardTitle className="text-3xl text-red-600">{stats.rejected}</CardTitle>
 								</CardHeader>
 							</Card>
 							<Card>

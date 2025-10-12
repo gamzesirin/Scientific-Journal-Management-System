@@ -5,7 +5,7 @@ export interface Paper {
 	keywords?: string[]
 	file_url: string
 	author_id: string
-	status: 'submitted' | 'under_review' | 'accepted' | 'rejected' | 'published'
+	status: 'submitted' | 'under_review' | 'revision_requested' | 'accepted' | 'rejected' | 'published'
 	assigned_editor_id?: string
 	submitted_at: string
 	created_at: string
@@ -71,6 +71,7 @@ export interface EditorStats {
 	totalPapers: number
 	pendingReview: number
 	underReview: number
+	revisionRequested: number
 	reviewed: number
 	accepted: number
 	rejected: number

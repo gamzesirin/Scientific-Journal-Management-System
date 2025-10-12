@@ -27,6 +27,7 @@ export interface Article {
 export type ArticleStatus =
 	| 'submitted'
 	| 'under_review'
+	| 'revision_requested'
 	| 'accepted'
 	| 'rejected'
 	| 'published'
@@ -35,6 +36,7 @@ export interface ArticleStats {
 	total: number
 	submitted: number
 	under_review: number
+	revision_requested: number
 	accepted: number
 	rejected: number
 	published: number

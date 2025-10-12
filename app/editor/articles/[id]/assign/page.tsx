@@ -40,6 +40,12 @@ export default async function AssignReviewerPage({ params }: PageProps) {
 		notFound()
 	}
 
+	// Editörler sadece kendilerine atanan makaleleri yönetebilir (adminler hepsini yönetebilir)
+	if (userData?.role === 'editor' && paper.assigned_editor_id !== user.id) {
+		console.error('Editor not authorized to assign reviewers for this paper:', user.id, paper.assigned_editor_id)
+		redirect('/dashboard')
+	}
+
 	// Get author info separately if paper exists
 	let author = null
 	if (paper.author_id) {

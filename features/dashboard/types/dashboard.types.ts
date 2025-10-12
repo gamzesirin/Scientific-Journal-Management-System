@@ -46,6 +46,7 @@ export interface AdminStats {
 	papersByStatus: {
 		submitted: number
 		under_review: number
+		revision_requested: number
 		accepted: number
 		rejected: number
 		published: number

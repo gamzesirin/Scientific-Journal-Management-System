@@ -25,10 +25,12 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { Eye, Trash2, Search, Edit, XCircle, Users } from 'lucide-react'
+import { Eye, Trash2, Search, Edit, XCircle, Users, UserCog } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Article {
 	id: string
@@ -38,6 +40,7 @@ interface Article {
 		name: string
 		email: string
 	}
+	assigned_editor_id?: string | null
 	created_at: string
 	updated_at: string
 }
@@ -46,17 +49,53 @@ interface AdminArticlesTableProps {
 	articles: Article[]
 }
 
+interface Editor {
+	id: string
+	name: string
+	email: string
+}
+
 export default function AdminArticlesTable({ articles }: AdminArticlesTableProps) {
 	const router = useRouter()
 	const [searchTerm, setSearchTerm] = useState('')
 	const [statusDialogOpen, setStatusDialogOpen] = useState(false)
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+	const [editorDialogOpen, setEditorDialogOpen] = useState(false)
 	const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
 	const [newStatus, setNewStatus] = useState('')
+	const [selectedEditorId, setSelectedEditorId] = useState('unassign')
+	const [editors, setEditors] = useState<Editor[]>([])
+	const [editorNames, setEditorNames] = useState<Map<string, string>>(new Map())
 	const [isSubmitting, setIsSubmitting] = useState(false)
 
+	// Editörleri ve atanmış editör isimlerini yükle
+	useEffect(() => {
+		const loadEditors = async () => {
+			const supabase = createClient()
+			const { data: editorsData } = await supabase
+				.from('users')
+				.select('id, name, email')
+				.eq('role', 'editor')
+				.eq('is_active', true)
+				.order('name')
+
+			if (editorsData) {
+				setEditors(editorsData)
+
+				// Atanmış editör isimlerini map'e ekle
+				const namesMap = new Map<string, string>()
+				editorsData.forEach((editor) => {
+					namesMap.set(editor.id, editor.name)
+				})
+				setEditorNames(namesMap)
+			}
+		}
+
+		loadEditors()
+	}, [])
+
 	const filteredArticles = articles.filter(
-		article =>
+		(article) =>
 			article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			article.author?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			article.status.toLowerCase().includes(searchTerm.toLowerCase())
@@ -71,6 +110,12 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 	const handleDeleteClick = (article: Article) => {
 		setSelectedArticle(article)
 		setDeleteDialogOpen(true)
+	}
+
+	const handleEditorClick = (article: Article) => {
+		setSelectedArticle(article)
+		setSelectedEditorId(article.assigned_editor_id || 'unassign')
+		setEditorDialogOpen(true)
 	}
 
 	const handleRejectClick = async (article: Article) => {
@@ -123,6 +168,40 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 		} catch (error) {
 			console.error('Error updating article status:', error)
 			toast.error(error instanceof Error ? error.message : 'Durum güncellenirken bir hata oluştu')
+		} finally {
+			setIsSubmitting(false)
+		}
+	}
+
+	const handleEditorSubmit = async () => {
+		if (!selectedArticle) return
+
+		setIsSubmitting(true)
+		try {
+			// "unassign" değerini null'a çevir
+			const editorIdToAssign = selectedEditorId === 'unassign' ? null : selectedEditorId
+
+			const response = await fetch(`/api/admin/articles/${selectedArticle.id}`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					assigned_editor_id: editorIdToAssign
+				})
+			})
+
+			if (!response.ok) {
+				const error = await response.json()
+				throw new Error(error.error || 'Güncelleme başarısız')
+			}
+
+			toast.success(editorIdToAssign ? 'Editör başarıyla atandı' : 'Editör ataması kaldırıldı')
+			setEditorDialogOpen(false)
+			router.refresh()
+		} catch (error) {
+			console.error('Error updating article editor:', error)
+			toast.error(error instanceof Error ? error.message : 'Editör atanırken bir hata oluştu')
 		} finally {
 			setIsSubmitting(false)
 		}
@@ -199,7 +278,7 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 				<Input
 					placeholder="Makale başlığı, yazar veya durum ile ara..."
 					value={searchTerm}
-					onChange={e => setSearchTerm(e.target.value)}
+					onChange={(e) => setSearchTerm(e.target.value)}
 					className="pl-10"
 				/>
 			</div>
@@ -211,26 +290,41 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 						<TableRow>
 							<TableHead>Başlık</TableHead>
 							<TableHead>Yazar</TableHead>
+							<TableHead>Atanan Editör</TableHead>
 							<TableHead>Durum</TableHead>
 							<TableHead>Gönderim Tarihi</TableHead>
 							<TableHead className="text-right">İşlemler</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{filteredArticles.map(article => (
+						{filteredArticles.map((article) => (
 							<TableRow key={article.id}>
-								<TableCell className="font-medium max-w-md truncate">
-									{article.title}
-								</TableCell>
+								<TableCell className="font-medium max-w-md truncate">{article.title}</TableCell>
 								<TableCell>{article.author?.name || 'Bilinmiyor'}</TableCell>
 								<TableCell>
-									<Badge variant={getStatusBadgeVariant(article.status)}>
-										{getStatusLabel(article.status)}
-									</Badge>
+									{article.assigned_editor_id ? (
+										<div className="flex items-center gap-2">
+											<span className="text-sm">{editorNames.get(article.assigned_editor_id) || 'Yükleniyor...'}</span>
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={() => handleEditorClick(article)}
+												title="Editörü Değiştir"
+											>
+												<Edit className="h-3 w-3" />
+											</Button>
+										</div>
+									) : (
+										<Button variant="outline" size="sm" onClick={() => handleEditorClick(article)} title="Editör Ata">
+											<UserCog className="h-4 w-4 mr-1" />
+											Editör Ata
+										</Button>
+									)}
 								</TableCell>
 								<TableCell>
-									{new Date(article.created_at).toLocaleDateString('tr-TR')}
+									<Badge variant={getStatusBadgeVariant(article.status)}>{getStatusLabel(article.status)}</Badge>
 								</TableCell>
+								<TableCell>{new Date(article.created_at).toLocaleDateString('tr-TR')}</TableCell>
 								<TableCell className="text-right">
 									<div className="flex justify-end gap-2">
 										<Link href={`/articles/${article.id}`}>
@@ -264,12 +358,7 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 												<XCircle className="h-4 w-4" />
 											</Button>
 										)}
-										<Button
-											variant="destructive"
-											size="sm"
-											onClick={() => handleDeleteClick(article)}
-											title="Sil"
-										>
+										<Button variant="destructive" size="sm" onClick={() => handleDeleteClick(article)} title="Sil">
 											<Trash2 className="h-4 w-4" />
 										</Button>
 									</div>
@@ -281,19 +370,52 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 			</div>
 
 			{filteredArticles.length === 0 && (
-				<p className="text-center text-gray-500 py-8">
-					Arama kriterine uygun makale bulunamadı.
-				</p>
+				<p className="text-center text-gray-500 py-8">Arama kriterine uygun makale bulunamadı.</p>
 			)}
+
+			{/* Editor Assignment Dialog */}
+			<Dialog open={editorDialogOpen} onOpenChange={setEditorDialogOpen}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle>Editör Ata</DialogTitle>
+						<DialogDescription>"{selectedArticle?.title}" makalesine editör atayın.</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<Label htmlFor="editor">Editör</Label>
+							<Select value={selectedEditorId || 'unassign'} onValueChange={setSelectedEditorId}>
+								<SelectTrigger id="editor">
+									<SelectValue placeholder="Editör seçin" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="unassign">Editör Atamasını Kaldır</SelectItem>
+									{editors.map((editor) => (
+										<SelectItem key={editor.id} value={editor.id}>
+											{editor.name} ({editor.email})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							{editors.length === 0 && <p className="text-sm text-gray-500">Aktif editör bulunamadı.</p>}
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setEditorDialogOpen(false)} disabled={isSubmitting}>
+							İptal
+						</Button>
+						<Button onClick={handleEditorSubmit} disabled={isSubmitting}>
+							{isSubmitting ? 'Atanıyor...' : 'Ata'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Status Update Dialog */}
 			<Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
 						<DialogTitle>Makale Durumunu Güncelle</DialogTitle>
-						<DialogDescription>
-							"{selectedArticle?.title}" makalesinin durumunu değiştirin.
-						</DialogDescription>
+						<DialogDescription>"{selectedArticle?.title}" makalesinin durumunu değiştirin.</DialogDescription>
 					</DialogHeader>
 					<div className="grid gap-4 py-4">
 						<div className="grid gap-2">
@@ -314,11 +436,7 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 						</div>
 					</div>
 					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setStatusDialogOpen(false)}
-							disabled={isSubmitting}
-						>
+						<Button variant="outline" onClick={() => setStatusDialogOpen(false)} disabled={isSubmitting}>
 							İptal
 						</Button>
 						<Button onClick={handleStatusSubmit} disabled={isSubmitting}>
