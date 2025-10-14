@@ -12,6 +12,7 @@ import { Article } from '@/features/articles/types/article.types'
 import AssignedPapersList from '@/features/reviewer/components/AssignedPapersList'
 import ReviewStatistics from '@/features/reviewer/components/ReviewStatistics'
 import ProfileUpdateForm from '@/features/auth/components/ProfileUpdateForm'
+import CVUploadSection from '@/features/reviewer/components/CVUploadSection'
 import { Review } from '@/features/reviewer/types/review.types'
 
 interface UserData {
@@ -21,6 +22,7 @@ interface UserData {
 	role: string
 	expertise_areas?: string[]
 	affiliation?: string
+	cv_file_url?: string | null
 }
 
 interface ReviewerDashboardProps {
@@ -135,10 +137,11 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 
 			{/* Tabs for different views */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-				<TabsList className="grid w-full max-w-2xl grid-cols-4">
+				<TabsList className="grid w-full max-w-3xl grid-cols-5">
 					<TabsTrigger value="overview">Genel Bakış</TabsTrigger>
 					<TabsTrigger value="assignments">Atamalar</TabsTrigger>
 					<TabsTrigger value="statistics">İstatistikler</TabsTrigger>
+					<TabsTrigger value="cv">Özgeçmiş</TabsTrigger>
 					<TabsTrigger value="profile">Profilim</TabsTrigger>
 				</TabsList>
 
@@ -253,6 +256,10 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 
 				<TabsContent value="statistics">
 					<ReviewStatistics papers={assignedPapers || []} reviews={reviews || []} />
+				</TabsContent>
+
+				<TabsContent value="cv">
+					<CVUploadSection userId={user.id} currentCvUrl={userData?.cv_file_url} />
 				</TabsContent>
 
 				<TabsContent value="profile">
