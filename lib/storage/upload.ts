@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/client'
 export async function uploadPaperFile(
 	file: File,
 	userId: string,
-	paperId: string
+	paperId: string,
+	versionNumber?: number
 ): Promise<{ url: string | null; error: string | null }> {
 	const supabase = createClient()
 
@@ -12,18 +13,24 @@ export async function uploadPaperFile(
 		return { url: null, error: 'Dosya çok büyük (maksimum 10MB)' }
 	}
 
-	const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+	const allowedTypes = [
+		'application/pdf',
+		'application/msword',
+		'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+	]
 	if (!allowedTypes.includes(file.type)) {
 		return { url: null, error: 'Sadece PDF ve Word dosyaları yüklenebilir' }
 	}
 
 	// Upload
 	const fileExt = file.name.split('.').pop()
-	const filePath = `${userId}/${paperId}.${fileExt}`
+	// Revizyon versiyonu varsa dosya adına ekle
+	const fileName = versionNumber ? `${paperId}_v${versionNumber}.${fileExt}` : `${paperId}.${fileExt}`
+	const filePath = `${userId}/${fileName}`
 
 	const { data, error } = await supabase.storage.from('articles').upload(filePath, file, {
 		cacheControl: '3600',
-		upsert: false
+		upsert: true // Revizyon yüklemelerinde aynı dosya adını kullanmak için
 	})
 
 	if (error) {
@@ -31,7 +38,9 @@ export async function uploadPaperFile(
 	}
 
 	// Get public URL
-	const { data: { publicUrl } } = supabase.storage.from('articles').getPublicUrl(data.path)
+	const {
+		data: { publicUrl }
+	} = supabase.storage.from('articles').getPublicUrl(data.path)
 
 	return { url: publicUrl, error: null }
 }
@@ -40,11 +49,7 @@ export async function deletePaperFile(paperId: string, userId: string) {
 	const supabase = createClient()
 
 	// Try to delete both PDF and Word versions
-	const filePaths = [
-		`${userId}/${paperId}.pdf`,
-		`${userId}/${paperId}.doc`,
-		`${userId}/${paperId}.docx`
-	]
+	const filePaths = [`${userId}/${paperId}.pdf`, `${userId}/${paperId}.doc`, `${userId}/${paperId}.docx`]
 
 	const { error } = await supabase.storage.from('articles').remove(filePaths)
 
@@ -72,9 +77,7 @@ export async function downloadPaperFile(fileUrl: string) {
 export async function getSignedUrl(filePath: string, expiresIn: number = 3600) {
 	const supabase = createClient()
 
-	const { data, error } = await supabase.storage
-		.from('articles')
-		.createSignedUrl(filePath, expiresIn)
+	const { data, error } = await supabase.storage.from('articles').createSignedUrl(filePath, expiresIn)
 
 	if (error) {
 		return { url: null, error: error.message }
