@@ -30,6 +30,11 @@ export default function PapersList({ papers, title = 'Makaleler', description }:
 			submitted: { label: 'Gönderildi', variant: 'secondary' as const },
 			under_review: { label: 'İnceleniyor', variant: 'default' as const },
 			revision_requested: { label: 'Revizyon İstendi', variant: 'default' as const },
+			resubmitted: {
+				label: '🔄 Revizyon Gönderildi',
+				variant: 'default' as const,
+				className: 'bg-purple-600 text-white'
+			},
 			accepted: { label: 'Kabul Edildi', variant: 'success' as const },
 			rejected: { label: 'Reddedildi', variant: 'destructive' as const },
 			published: { label: 'Yayınlandı', variant: 'outline' as const }
@@ -90,7 +95,9 @@ export default function PapersList({ papers, title = 'Makaleler', description }:
 												</div>
 
 												<div className="flex flex-wrap gap-2">
-													<Badge variant={status.variant}>{status.label}</Badge>
+													<Badge variant={status.variant} className={(status as any).className}>
+														{status.label}
+													</Badge>
 													<span className={`text-sm ${progress.color}`}>{progress.label}</span>
 												</div>
 
@@ -113,11 +120,14 @@ export default function PapersList({ papers, title = 'Makaleler', description }:
 															Detaylar (ID yok)
 														</Button>
 													)}
-													{paper.status === 'submitted' && paper.id && (
+													{(paper.status === 'submitted' || paper.status === 'resubmitted') && paper.id && (
 														<Link href={`/editor/articles/${paper.id}/assign`}>
-															<Button size="sm">
+															<Button
+																size="sm"
+																className={paper.status === 'resubmitted' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+															>
 																<Users className="h-4 w-4 mr-1" />
-																Hakem Ata
+																{paper.status === 'resubmitted' ? 'Yeniden Hakem Ata' : 'Hakem Ata'}
 															</Button>
 														</Link>
 													)}
@@ -174,7 +184,9 @@ export default function PapersList({ papers, title = 'Makaleler', description }:
 													</div>
 												</TableCell>
 												<TableCell>
-													<Badge variant={status.variant}>{status.label}</Badge>
+													<Badge variant={status.variant} className={(status as any).className}>
+														{status.label}
+													</Badge>
 												</TableCell>
 												<TableCell>
 													<span className={`text-sm ${progress.color}`}>{progress.label}</span>
@@ -199,9 +211,14 @@ export default function PapersList({ papers, title = 'Makaleler', description }:
 																Detay (ID yok)
 															</Button>
 														)}
-														{paper.status === 'submitted' && paper.id && (
+														{(paper.status === 'submitted' || paper.status === 'resubmitted') && paper.id && (
 															<Link href={`/editor/articles/${paper.id}/assign`}>
-																<Button size="sm">Hakem Ata</Button>
+																<Button
+																	size="sm"
+																	className={paper.status === 'resubmitted' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+																>
+																	{paper.status === 'resubmitted' ? 'Yeniden Hakem Ata' : 'Hakem Ata'}
+																</Button>
 															</Link>
 														)}
 													</div>

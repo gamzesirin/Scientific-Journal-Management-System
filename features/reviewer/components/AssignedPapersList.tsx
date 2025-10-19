@@ -32,6 +32,18 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 		return days
 	}
 
+	// Check if this is a revision (not the first review)
+	const isRevision = (paper: any) => {
+		return paper.revision_round && paper.revision_round > 1
+	}
+
+	// Get revision round label
+	const getRevisionLabel = (paper: any) => {
+		const round = paper.revision_round || 1
+		if (round === 1) return null
+		return `${round}. Tur Değerlendirme`
+	}
+
 	return (
 		<Card>
 			<CardHeader>
@@ -60,11 +72,18 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 													<p className="text-sm text-gray-500 mt-1 line-clamp-2">{paper.abstract}</p>
 												</div>
 
-												<div className="flex items-center justify-between">
-													<Badge variant={reviewStatus.variant}>{reviewStatus.label}</Badge>
+												<div className="flex items-center justify-between flex-wrap gap-2">
+													<div className="flex gap-2 flex-wrap">
+														{isRevision(paper) && (
+															<Badge className="bg-orange-600 text-white">
+																🔄 {getRevisionLabel(paper)}
+															</Badge>
+														)}
+														<Badge variant={reviewStatus.variant}>{reviewStatus.label}</Badge>
+													</div>
 													{daysRemaining !== null && reviewStatus.status !== 'submitted' && (
-														<span className={`text-sm ${daysRemaining < 3 ? 'text-red-600' : 'text-gray-600'}`}>
-															{daysRemaining} gün kaldı
+														<span className={`text-sm font-medium ${daysRemaining < 3 ? 'text-red-600' : daysRemaining < 7 ? 'text-yellow-600' : 'text-gray-600'}`}>
+															{daysRemaining < 0 ? `${Math.abs(daysRemaining)} gün gecikmiş!` : `${daysRemaining} gün kaldı`}
 														</span>
 													)}
 												</div>
@@ -118,7 +137,14 @@ export default function AssignedPapersList({ papers, reviews }: AssignedPapersLi
 											<TableRow key={paper.assignment_id || paperId || `paper-${index}`}>
 												<TableCell>
 													<div className="max-w-md">
-														<p className="font-medium line-clamp-1">{paper.title}</p>
+														<div className="flex items-center gap-2">
+															<p className="font-medium line-clamp-1">{paper.title}</p>
+															{isRevision(paper) && (
+																<Badge className="bg-orange-600 text-white text-xs shrink-0">
+																	🔄 {getRevisionLabel(paper)}
+																</Badge>
+															)}
+														</div>
 														<p className="text-sm text-gray-500 line-clamp-1 mt-1">{paper.abstract}</p>
 													</div>
 												</TableCell>
