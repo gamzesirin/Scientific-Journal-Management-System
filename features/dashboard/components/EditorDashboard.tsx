@@ -11,6 +11,7 @@ import { Article } from '@/features/articles/types/article.types'
 import PapersList from '@/features/editor/components/PapersList'
 import EditorStatistics from '@/features/editor/components/EditorStatistics'
 import ProfileUpdateForm from '@/features/auth/components/ProfileUpdateForm'
+import ReviewerPerformanceTable from '@/features/editor/components/ReviewerPerformanceTable'
 import { Paper } from '@/features/editor/types/editor.types'
 
 interface UserData {
@@ -23,7 +24,7 @@ interface UserData {
 
 interface EditorDashboardProps {
 	user: User
-	userData: UserData
+	userData: UserData | null
 	allPapers: Article[]
 }
 
@@ -59,6 +60,7 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 	const newSubmissions = papers.filter((p) => p.status === 'submitted')
 	const underReview = papers.filter((p) => p.status === 'under_review')
 	const revisionRequested = papers.filter((p) => p.status === 'revision_requested')
+	const resubmitted = papers.filter((p) => p.status === 'resubmitted')
 	const completed = papers.filter((p) => p.status === 'accepted' || p.status === 'rejected' || p.status === 'published')
 
 	// Quick stats
@@ -66,6 +68,7 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 		submitted: newSubmissions.length,
 		under_review: underReview.length,
 		revision_requested: revisionRequested.length,
+		resubmitted: resubmitted.length,
 		accepted: papers.filter((p) => p.status === 'accepted').length,
 		rejected: papers.filter((p) => p.status === 'rejected').length,
 		published: papers.filter((p) => p.status === 'published').length,
@@ -114,10 +117,19 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 
 				<Card>
 					<CardHeader className="pb-2">
-						<CardTitle className="text-sm font-medium text-gray-600">Revizyon</CardTitle>
+						<CardTitle className="text-sm font-medium text-gray-600">Revizyon İstendi</CardTitle>
 					</CardHeader>
 					<CardContent>
 						<p className="text-2xl font-bold text-orange-600">{stats.revision_requested}</p>
+					</CardContent>
+				</Card>
+
+				<Card className="border-purple-300 bg-purple-50">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-purple-700">Revize Edilmiş</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-2xl font-bold text-purple-600">{stats.resubmitted}</p>
 					</CardContent>
 				</Card>
 
@@ -151,10 +163,19 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 
 			{/* Tabs for different views */}
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-				<TabsList className="grid w-full max-w-2xl grid-cols-5">
+				<TabsList className="grid w-full max-w-4xl grid-cols-7">
 					<TabsTrigger value="overview">Genel Bakış</TabsTrigger>
 					<TabsTrigger value="new">Yeni Gönderimler</TabsTrigger>
+					<TabsTrigger value="resubmitted" className="relative">
+						Revize Edilmiş
+						{resubmitted.length > 0 && (
+							<Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+								{resubmitted.length}
+							</Badge>
+						)}
+					</TabsTrigger>
 					<TabsTrigger value="in-review">İncelemede</TabsTrigger>
+					<TabsTrigger value="reviewers">Hakem Performansı</TabsTrigger>
 					<TabsTrigger value="statistics">İstatistikler</TabsTrigger>
 					<TabsTrigger value="profile">Profilim</TabsTrigger>
 				</TabsList>
@@ -167,12 +188,24 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 					<PapersList papers={newSubmissions} title="Yeni Gönderimler" description="Hakem ataması bekleyen makaleler" />
 				</TabsContent>
 
+				<TabsContent value="resubmitted">
+					<PapersList
+						papers={resubmitted}
+						title="Revize Edilmiş Makaleler"
+						description="Yazar tarafından revize edilerek yeniden gönderilmiş makaleler. İnceleyip tekrar hakem ataması yapabilirsiniz."
+					/>
+				</TabsContent>
+
 				<TabsContent value="in-review">
 					<PapersList
 						papers={underReview}
 						title="İnceleme Altındaki Makaleler"
 						description="Hakem değerlendirmesi devam eden makaleler"
 					/>
+				</TabsContent>
+
+				<TabsContent value="reviewers">
+					<ReviewerPerformanceTable />
 				</TabsContent>
 
 				<TabsContent value="statistics">

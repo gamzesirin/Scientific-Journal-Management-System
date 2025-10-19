@@ -17,7 +17,7 @@ interface UserData {
 
 interface AuthorDashboardProps {
 	user: User
-	userData: UserData
+	userData: UserData | null
 	articles: Article[]
 }
 
@@ -27,6 +27,7 @@ export default function AuthorDashboard({ user, userData, articles }: AuthorDash
 		submitted: articles?.filter((a) => a.status === 'submitted').length || 0,
 		under_review: articles?.filter((a) => a.status === 'under_review').length || 0,
 		revision_requested: articles?.filter((a) => a.status === 'revision_requested').length || 0,
+		resubmitted: articles?.filter((a) => a.status === 'resubmitted').length || 0,
 		accepted: articles?.filter((a) => a.status === 'accepted').length || 0,
 		rejected: articles?.filter((a) => a.status === 'rejected').length || 0,
 		published: articles?.filter((a) => a.status === 'published').length || 0
@@ -63,8 +64,14 @@ export default function AuthorDashboard({ user, userData, articles }: AuthorDash
 							</Card>
 							<Card>
 								<CardHeader className="pb-2">
-									<CardDescription>Revizyon</CardDescription>
+									<CardDescription>Revizyon İstendi</CardDescription>
 									<CardTitle className="text-3xl text-orange-600">{stats.revision_requested}</CardTitle>
+								</CardHeader>
+							</Card>
+							<Card>
+								<CardHeader className="pb-2">
+									<CardDescription>Revizyon Gönderildi</CardDescription>
+									<CardTitle className="text-3xl text-purple-600">{stats.resubmitted}</CardTitle>
 								</CardHeader>
 							</Card>
 							<Card>

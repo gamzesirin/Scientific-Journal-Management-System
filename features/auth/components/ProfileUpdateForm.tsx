@@ -18,17 +18,37 @@ interface ProfileUpdateFormProps {
 		name: string
 		role: string
 		affiliation?: string
-	}
+	} | null
 }
 
 export default function ProfileUpdateForm({ userData }: ProfileUpdateFormProps) {
 	const router = useRouter()
 	const [isLoading, setIsLoading] = useState(false)
 	const [formData, setFormData] = useState({
-		name: userData.name || '',
-		email: userData.email || '',
-		affiliation: userData.affiliation || ''
+		name: userData?.name || '',
+		email: userData?.email || '',
+		affiliation: userData?.affiliation || ''
 	})
+
+	// Handle null userData case
+	if (!userData) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<User className="h-5 w-5" />
+						Profil Bilgileri
+					</CardTitle>
+					<CardDescription>Yükleniyor...</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center justify-center p-8">
+						<p className="text-muted-foreground">Profil bilgileri yükleniyor...</p>
+					</div>
+				</CardContent>
+			</Card>
+		)
+	}
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()

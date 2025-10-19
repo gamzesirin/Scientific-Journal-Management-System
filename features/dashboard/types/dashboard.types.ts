@@ -50,5 +50,24 @@ export interface AdminStats {
 		accepted: number
 		rejected: number
 		published: number
+		resubmitted: number
+	}
+	// Yeni: Desk Evaluation İstatistikleri
+	deskEvaluations: {
+		total: number
+		approved: number
+		rejected: number
+		pending: number
+	}
+	// Yeni: Ortak Yazar İstatistikleri
+	coauthors: {
+		totalPapersWithCoauthors: number
+		totalCoauthors: number
+		averageCoauthorsPerPaper: number
+	}
+	// Yeni: Revizyon İstatistikleri
+	revisions: {
+		totalRevisions: number
+		papersWithRevisions: number
 	}
 }

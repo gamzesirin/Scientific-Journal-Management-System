@@ -27,7 +27,7 @@ interface UserData {
 
 interface ReviewerDashboardProps {
 	user: User
-	userData: UserData
+	userData: UserData | null
 	assignedPapers: any[]
 	reviews: Review[]
 }
@@ -153,7 +153,7 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 								<AlertCircle className="h-5 w-5 text-orange-600" />
 								Öncelikli Değerlendirmeler
 							</CardTitle>
-							<CardDescription>Yaklaşan son tarihi olan veya gecikmiş değerlendirmeler</CardDescription>
+							<CardDescription>Revizyonlar, yaklaşan son tarih veya gecikmiş değerlendirmeler</CardDescription>
 						</CardHeader>
 						<CardContent>
 							{assignedPapers &&
@@ -161,11 +161,14 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 								const paperId = p.article_id || p.id
 								const review = reviews?.find((r) => r.article_id === paperId)
 								if (review?.status === 'submitted') return false
+								// Revizyon olanlar öncelikli
+								if (p.revision_round && p.revision_round > 1) return true
+								// Veya deadline yakın olanlar
 								if (!p.deadline) return false
 								const daysRemaining = Math.ceil(
 									(new Date(p.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
 								)
-								return daysRemaining <= 3
+								return daysRemaining <= 7  // 7 güne düşürdük
 							}).length > 0 ? (
 								<div className="space-y-3">
 									{assignedPapers
@@ -173,34 +176,57 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 											const paperId = p.article_id || p.id
 											const review = reviews?.find((r) => r.article_id === paperId)
 											if (review?.status === 'submitted') return false
+											// Revizyon olanlar öncelikli
+											if (p.revision_round && p.revision_round > 1) return true
+											// Veya deadline yakın olanlar
 											if (!p.deadline) return false
 											const daysRemaining = Math.ceil(
 												(new Date(p.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
 											)
-											return daysRemaining <= 3
+											return daysRemaining <= 7
+										})
+										// Revizyonları üstte göster
+										.sort((a, b) => {
+											const aIsRevision = (a.revision_round || 1) > 1
+											const bIsRevision = (b.revision_round || 1) > 1
+											if (aIsRevision && !bIsRevision) return -1
+											if (!aIsRevision && bIsRevision) return 1
+											return 0
 										})
 										.map((paper) => {
 											const paperId = paper.article_id || paper.id
-											const daysRemaining = Math.ceil(
-												(new Date(paper.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-											)
+											const daysRemaining = paper.deadline
+												? Math.ceil((new Date(paper.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+												: null
 											const review = reviews?.find((r) => r.article_id === paperId)
+											const isRevision = (paper.revision_round || 1) > 1
+											const revisionLabel = isRevision ? `${paper.revision_round}. Tur` : null
 
 											return (
 												<div
 													key={paperId}
-													className="flex items-center justify-between p-3 border rounded-lg bg-orange-50"
+													className={`flex items-center justify-between p-3 border rounded-lg ${
+														isRevision ? 'bg-orange-100 border-orange-300' : 'bg-orange-50'
+													}`}
 												>
 													<div className="flex-1">
-														<p className="font-medium line-clamp-1">{paper.title}</p>
+														<div className="flex items-center gap-2">
+															<p className="font-medium line-clamp-1">{paper.title}</p>
+															{isRevision && (
+																<Badge className="bg-orange-600 text-white text-xs">🔄 {revisionLabel}</Badge>
+															)}
+														</div>
 														<p className="text-sm text-gray-600">
-															{daysRemaining < 0
-																? `${Math.abs(daysRemaining)} gün gecikmiş`
-																: `${daysRemaining} gün kaldı`}
+															{isRevision && 'Revizyon değerlendirmesi bekleniyor'}
+															{!isRevision &&
+																daysRemaining !== null &&
+																(daysRemaining < 0
+																	? `${Math.abs(daysRemaining)} gün gecikmiş`
+																	: `${daysRemaining} gün kaldı`)}
 														</p>
 													</div>
 													<Link href={`/reviews/${paperId}`}>
-														<Button size="sm" variant={daysRemaining < 0 ? 'destructive' : 'default'}>
+														<Button size="sm" variant={daysRemaining !== null && daysRemaining < 0 ? 'destructive' : 'default'}>
 															{review?.status === 'draft' ? 'Devam Et' : 'Değerlendir'}
 														</Button>
 													</Link>
@@ -259,7 +285,7 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 				</TabsContent>
 
 				<TabsContent value="cv">
-					<CVUploadSection userId={user.id} currentCvUrl={userData?.cv_file_url} />
+					<CVUploadSection userId={user.id} />
 				</TabsContent>
 
 				<TabsContent value="profile">
