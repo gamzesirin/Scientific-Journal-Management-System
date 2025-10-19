@@ -18,6 +18,7 @@ import {
 	AlertCircle
 } from 'lucide-react'
 import { PDFDownloadSection } from '@/components/common/pdf-download-section'
+import EditorDeskEvaluationForm from '@/features/editor/components/EditorDeskEvaluationForm'
 
 interface PageProps {
 	params: Promise<{
@@ -143,6 +144,30 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 	// Get decision if exists
 	const { data: decision } = await supabase.from('decisions').select('*').eq('article_id', paperId).single()
 
+	// Get editor desk evaluation
+	const { data: deskEvaluation } = await supabase
+		.from('editor_desk_evaluations')
+		.select('*')
+		.eq('article_id', paperId)
+		.single()
+
+	// Check if there are new submitted reviews after the last decision
+	// This is important for revision workflow where editor needs to make a new decision
+	const hasNewReviewsAfterDecision = decision && reviews && reviews.length > 0
+		? reviews.some((r: any) => {
+				if (r.status !== 'submitted') return false
+				if (!decision.finalized_at) return true
+				const reviewDate = new Date(r.submitted_at || r.updated_at)
+				const decisionDate = new Date(decision.finalized_at)
+				return reviewDate > decisionDate
+		  })
+		: false
+
+	// Show "Karar Ver" button when:
+	// 1. No decision exists (first time), OR
+	// 2. Article is resubmitted AND there are new submitted reviews
+	const canMakeDecision = !decision || (paperWithAuthor.status === 'resubmitted' && hasNewReviewsAfterDecision)
+
 	// Dosya URL'sinden gerçek dosya adını çıkar
 	const getFileNameFromUrl = (url: string) => {
 		try {
@@ -211,9 +236,11 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 									</Button>
 								</Link>
 							)}
-							{reviews && reviews.length > 0 && !decision && (
+							{reviews && reviews.length > 0 && canMakeDecision && (
 								<Link href={`/editor/articles/${paperId}/decision`}>
-									<Button variant="default">Karar Ver</Button>
+									<Button variant="default">
+										{decision ? 'Yeni Karar Ver' : 'Karar Ver'}
+									</Button>
 								</Link>
 							)}
 						</div>
@@ -223,6 +250,11 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					{/* Main Content */}
 					<div className="lg:col-span-2 space-y-6">
+						{/* Desk Evaluation - Show for submitted or resubmitted articles */}
+						{(paperWithAuthor.status === 'submitted' || paperWithAuthor.status === 'resubmitted') && (
+							<EditorDeskEvaluationForm articleId={paperId} articleTitle={paperWithAuthor.title} editorId={user.id} />
+						)}
+
 						{/* Paper Details */}
 						<Card>
 							<CardHeader>
@@ -524,9 +556,11 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 										</Button>
 									</Link>
 								)}
-								{reviews && reviews.filter((r: any) => r.status === 'submitted').length > 0 && !decision && (
+								{reviews && reviews.filter((r: any) => r.status === 'submitted').length > 0 && canMakeDecision && (
 									<Link href={`/editor/articles/${paperId}/decision`} className="block">
-										<Button className="w-full">Karar Ver</Button>
+										<Button className="w-full">
+											{decision ? 'Yeni Karar Ver' : 'Karar Ver'}
+										</Button>
 									</Link>
 								)}
 							</CardContent>

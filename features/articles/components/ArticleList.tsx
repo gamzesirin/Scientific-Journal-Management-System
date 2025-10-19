@@ -15,6 +15,7 @@ const statusColors: Record<string, string> = {
 	submitted: 'bg-blue-500',
 	under_review: 'bg-yellow-500',
 	revision_requested: 'bg-orange-500',
+	resubmitted: 'bg-purple-600',
 	accepted: 'bg-green-500',
 	rejected: 'bg-red-500',
 	published: 'bg-purple-500'
@@ -24,6 +25,7 @@ const statusLabels: Record<string, string> = {
 	submitted: 'Gönderildi',
 	under_review: 'İnceleme Altında',
 	revision_requested: 'Revizyon İstendi',
+	resubmitted: 'Revizyon Gönderildi',
 	accepted: 'Kabul Edildi',
 	rejected: 'Reddedildi',
 	published: 'Yayınlandı'

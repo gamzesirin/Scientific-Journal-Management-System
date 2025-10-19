@@ -145,6 +145,14 @@ export default function Navbar() {
 
 					{/* Desktop Menu */}
 					<div className="hidden md:flex md:items-center md:gap-4">
+						{/* Published Articles - Herkes için görünür */}
+						<Link href="/published">
+							<Button variant="ghost" size="sm" className="gap-2">
+								<BookOpen className="h-4 w-4" />
+								Yayınlar
+							</Button>
+						</Link>
+
 						{user ? (
 							<>
 								{/* Dashboard Link */}
@@ -234,21 +242,23 @@ export default function Navbar() {
 								</DropdownMenu>
 							</>
 						) : (
-							<div className="flex items-center gap-2">
-								<Link href="/auth/login">
-									<Button variant="ghost" size="sm">
-										Giriş Yap
-									</Button>
-								</Link>
-								<Link href="/auth/register">
-									<Button
-										size="sm"
-										className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-									>
-										Kayıt Ol
-									</Button>
-								</Link>
-							</div>
+							<>
+								<div className="flex items-center gap-2">
+									<Link href="/auth/login">
+										<Button variant="ghost" size="sm">
+											Giriş Yap
+										</Button>
+									</Link>
+									<Link href="/auth/register">
+										<Button
+											size="sm"
+											className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+										>
+											Kayıt Ol
+										</Button>
+									</Link>
+								</div>
+							</>
 						)}
 					</div>
 
@@ -263,6 +273,14 @@ export default function Navbar() {
 				{/* Mobile Menu */}
 				{mobileMenuOpen && (
 					<div className="border-t py-4 md:hidden">
+						{/* Published Articles - Herkes için görünür */}
+						<Link href="/published" onClick={() => setMobileMenuOpen(false)}>
+							<Button variant="ghost" className="w-full justify-start gap-2 mb-2">
+								<BookOpen className="h-4 w-4" />
+								Yayınlanan Makaleler
+							</Button>
+						</Link>
+
 						{user ? (
 							<div className="space-y-3">
 								<div className="flex items-center gap-3 px-2 py-2 border-b">

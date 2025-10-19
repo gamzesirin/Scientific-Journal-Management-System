@@ -1,17 +1,15 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { notFound, redirect } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { ArrowLeft, Download } from 'lucide-react'
 import Link from 'next/link'
-import { PDFDownloadSection } from '@/components/common/pdf-download-section'
-
-type Props = {
-	params: Promise<{
-		id: string
-	}>
-}
+import ArticleTimeline from '@/features/articles/components/ArticleTimeline'
+import RevisionUploadForm from '@/features/articles/components/RevisionUploadForm'
+import RevisionHistory from '@/features/articles/components/RevisionHistory'
+import CoauthorsManager from '@/features/articles/components/CoauthorsManager'
 
 const statusColors: Record<string, string> = {
 	submitted: 'bg-blue-500',
@@ -31,165 +29,243 @@ const statusLabels: Record<string, string> = {
 	published: 'Yayınlandı'
 }
 
-export default async function ArticleDetailPage({ params }: Props) {
-	const resolvedParams = await params
+export default async function ArticleDetailPage({ params }: { params: Promise<{ id: string }> }) {
 	const supabase = await createServerSupabaseClient()
+	const resolvedParams = await params
+
+	// Auth check
 	const {
 		data: { user }
 	} = await supabase.auth.getUser()
 
 	if (!user) {
-		redirect('/auth/login')
+		redirect('/login')
 	}
 
-	// Makale bilgilerini al
-	const { data: article, error } = await supabase.from('articles').select('*').eq('id', resolvedParams.id).single()
-
-	if (error || !article) {
-		return (
-			<div className="container mx-auto py-8 px-4">
-				<Card>
-					<CardHeader>
-						<CardTitle>Makale Bulunamadı</CardTitle>
-						<CardDescription>Aradığınız makale bulunamadı veya erişim yetkiniz yok.</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<Button asChild>
-							<Link href="/dashboard">Dashboard&apos;a Dön</Link>
-						</Button>
-					</CardContent>
-				</Card>
-			</div>
-		)
-	}
-
-	// Get decision to correct article status
-	const { data: decision } = await supabase
-		.from('decisions')
-		.select('decision_type, status')
-		.eq('article_id', resolvedParams.id)
-		.eq('status', 'final')
-		.single()
-
-	// Correct article status based on decision
-	let correctedArticle = { ...article }
-	if (decision) {
-		if (decision.decision_type === 'revision' && article.status === 'under_review') {
-			correctedArticle.status = 'revision_requested'
-		} else if (decision.decision_type === 'accept' && article.status !== 'accepted' && article.status !== 'published') {
-			correctedArticle.status = 'accepted'
-		} else if (decision.decision_type === 'reject' && article.status !== 'rejected') {
-			correctedArticle.status = 'rejected'
-		}
-	}
-
-	// Kullanıcı rolünü al
+	// Get user data
 	const { data: userData } = await supabase.from('users').select('role').eq('id', user.id).single()
 
-	// Makale yazarının bilgilerini al
-	const { data: authorData } = await supabase.from('users').select('name, email').eq('id', article.author_id).single()
+	// Get article
+	const { data: article, error: articleError } = await supabase
+		.from('articles')
+		.select('*')
+		.eq('id', resolvedParams.id)
+		.single()
 
-	const userRole = userData?.role || 'author'
-
-	// Dosya URL'sinden gerçek dosya adını çıkar
-	const getFileNameFromUrl = (url: string) => {
-		try {
-			const urlObj = new URL(url)
-			const pathParts = urlObj.pathname.split('/')
-			return decodeURIComponent(pathParts[pathParts.length - 1])
-		} catch {
-			return 'makale.pdf'
-		}
+	if (articleError || !article) {
+		notFound()
 	}
 
-	const actualFileName = correctedArticle.file_url ? getFileNameFromUrl(correctedArticle.file_url) : 'makale.pdf'
+	// Get author separately
+	const { data: authorData } = await supabase
+		.from('users')
+		.select('name, email, affiliation')
+		.eq('id', article.author_id)
+		.single()
+
+	// Add author to article
+	const articleWithAuthor = {
+		...article,
+		author: authorData || { name: 'Unknown', email: '', affiliation: '' }
+	}
+
+	// Check if user is the author
+	const isAuthor = user.id === articleWithAuthor.author_id
+	const isAdmin = userData?.role === 'admin'
+	const isEditor = userData?.role === 'editor'
+
+	// Authors can only view their own articles
+	if (!isAuthor && !isAdmin && !isEditor) {
+		redirect('/dashboard')
+	}
 
 	return (
-		<div className="container mx-auto py-8 px-4 max-w-5xl">
-			<div className="mb-6">
-				<Button asChild variant="outline">
-					<Link href="/dashboard">← Geri Dön</Link>
+		<div className="container mx-auto py-8 space-y-6">
+			{/* Header */}
+			<div className="flex items-center gap-4">
+				<Button asChild variant="outline" size="sm">
+					<Link href="/dashboard">
+						<ArrowLeft className="h-4 w-4 mr-2" />
+						Geri Dön
+					</Link>
 				</Button>
+				<h1 className="text-3xl font-bold">Makale Detayları</h1>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<div className="flex items-start justify-between">
-						<div className="flex-1">
-							<CardTitle className="text-3xl mb-2">{correctedArticle.title}</CardTitle>
-							<CardDescription className="text-base">
-								Yazar: {authorData?.name || 'Bilinmiyor'} ({authorData?.email || ''})
-							</CardDescription>
-						</div>
-						<Badge className={`${statusColors[correctedArticle.status]} text-white`}>
-							{statusLabels[correctedArticle.status] || correctedArticle.status}
-						</Badge>
-					</div>
-				</CardHeader>
-				<CardContent className="space-y-6">
-					<div>
-						<h3 className="text-lg font-semibold mb-2">Özet</h3>
-						<p className="text-muted-foreground leading-relaxed">{correctedArticle.abstract}</p>
-					</div>
-
-					<Separator />
-
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div>
-							<h3 className="text-sm font-semibold mb-2">Kategori</h3>
-							<Badge variant="outline">{correctedArticle.category}</Badge>
-						</div>
-						<div>
-							<h3 className="text-sm font-semibold mb-2">Anahtar Kelimeler</h3>
-							<div className="flex flex-wrap gap-2">
-								{Array.isArray(correctedArticle.keywords) ? (
-									correctedArticle.keywords.map((keyword: string, index: number) => (
-										<Badge key={index} variant="secondary">
-											{keyword}
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+				{/* Main Content */}
+				<div className="lg:col-span-2 space-y-6">
+					{/* Article Info */}
+					<Card>
+						<CardHeader>
+							<div className="flex items-start justify-between gap-4">
+								<div className="flex-1">
+									<CardTitle className="text-2xl mb-2">{articleWithAuthor.title}</CardTitle>
+									<div className="flex flex-wrap items-center gap-2">
+										<Badge className={statusColors[articleWithAuthor.status] || 'bg-gray-500'}>
+											{statusLabels[articleWithAuthor.status] || articleWithAuthor.status}
 										</Badge>
-									))
-								) : (
-									<span className="text-sm text-muted-foreground">Anahtar kelime bulunamadı</span>
+										{articleWithAuthor.category && <Badge variant="outline">{articleWithAuthor.category}</Badge>}
+									</div>
+								</div>
+								{articleWithAuthor.file_url && (
+									<Button asChild variant="outline">
+										<a href={articleWithAuthor.file_url} target="_blank" rel="noopener noreferrer">
+											<Download className="h-4 w-4 mr-2" />
+											PDF İndir
+										</a>
+									</Button>
 								)}
 							</div>
-						</div>
-					</div>
-
-					<Separator />
-
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div>
-							<h3 className="text-sm font-semibold mb-2">Gönderim Tarihi</h3>
-							<p className="text-muted-foreground">{new Date(correctedArticle.created_at).toLocaleDateString('tr-TR')}</p>
-						</div>
-						<div>
-							<h3 className="text-sm font-semibold mb-2">Son Güncelleme</h3>
-							<p className="text-muted-foreground">{new Date(correctedArticle.updated_at).toLocaleDateString('tr-TR')}</p>
-						</div>
-					</div>
-
-					{correctedArticle.file_url && (
-						<>
-							<Separator />
+						</CardHeader>
+						<CardContent className="space-y-4">
 							<div>
-								<h3 className="text-sm font-semibold mb-2">Makale Dosyası</h3>
-								<PDFDownloadSection fileUrl={correctedArticle.file_url} fileName={actualFileName} />
+								<h3 className="font-semibold mb-2">Özet</h3>
+								<p className="text-gray-700 whitespace-pre-wrap">{articleWithAuthor.abstract}</p>
 							</div>
-						</>
-					)}
 
-					{(userRole === 'editor' || userRole === 'admin') && (
-						<>
+							{articleWithAuthor.keywords && articleWithAuthor.keywords.length > 0 && (
+								<div>
+									<h3 className="font-semibold mb-2">Anahtar Kelimeler</h3>
+									<div className="flex flex-wrap gap-2">
+										{articleWithAuthor.keywords.map((keyword: string, index: number) => (
+											<Badge key={index} variant="secondary">
+												{keyword}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+
 							<Separator />
-							<div className="flex gap-3">
-								<Button variant="outline">Hakem Ata</Button>
-								<Button variant="outline">Durumu Güncelle</Button>
-								<Button variant="destructive">Reddet</Button>
+
+							<div className="grid grid-cols-2 gap-4 text-sm">
+								<div>
+									<p className="text-gray-600">Yazar</p>
+									<p className="font-medium">{articleWithAuthor.author.name}</p>
+									{articleWithAuthor.author.affiliation && (
+										<p className="text-gray-500">{articleWithAuthor.author.affiliation}</p>
+									)}
+								</div>
+								<div>
+									<p className="text-gray-600">Gönderim Tarihi</p>
+									<p className="font-medium">{new Date(articleWithAuthor.created_at).toLocaleDateString('tr-TR')}</p>
+								</div>
+								<div>
+									<p className="text-gray-600">Son Güncelleme</p>
+									<p className="font-medium">{new Date(articleWithAuthor.updated_at).toLocaleDateString('tr-TR')}</p>
+								</div>
+								{articleWithAuthor.assigned_at && (
+									<div>
+										<p className="text-gray-600">Atama Tarihi</p>
+										<p className="font-medium">{new Date(articleWithAuthor.assigned_at).toLocaleDateString('tr-TR')}</p>
+									</div>
+								)}
 							</div>
-						</>
+						</CardContent>
+					</Card>
+
+					{/* Timeline */}
+					<ArticleTimeline articleId={articleWithAuthor.id} showFullDetails={isAdmin || isEditor} />
+
+					{/* Coauthors Manager */}
+					<CoauthorsManager articleId={articleWithAuthor.id} isAuthor={isAuthor} />
+
+					{/* Revision Upload Form - Only for authors when revision is requested or under review */}
+					{isAuthor &&
+						(articleWithAuthor.status === 'revision_requested' || articleWithAuthor.status === 'under_review') && (
+							<RevisionUploadForm
+								articleId={articleWithAuthor.id}
+								userId={user.id}
+								currentStatus={articleWithAuthor.status}
+							/>
+						)}
+
+					{/* Revision History - Show to everyone */}
+					<RevisionHistory articleId={articleWithAuthor.id} />
+				</div>
+
+				{/* Sidebar */}
+				<div className="space-y-6">
+					{/* Status Info */}
+					<Card>
+						<CardHeader>
+							<CardTitle>Makale Durumu</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="space-y-2">
+								<Badge className={`${statusColors[articleWithAuthor.status]} w-full justify-center py-2 text-base`}>
+									{statusLabels[articleWithAuthor.status]}
+								</Badge>
+
+								{articleWithAuthor.status === 'submitted' && (
+									<p className="text-sm text-gray-600 text-center">Makaleniz editör incelemesi bekliyor</p>
+								)}
+								{articleWithAuthor.status === 'under_review' && (
+									<p className="text-sm text-gray-600 text-center">Makaleniz hakemler tarafından inceleniyor</p>
+								)}
+								{articleWithAuthor.status === 'revision_requested' && (
+									<p className="text-sm text-orange-600 text-center font-medium">
+										Lütfen makalenizde gerekli düzeltmeleri yapın ve revizyon yükleyin
+									</p>
+								)}
+								{articleWithAuthor.status === 'accepted' && (
+									<p className="text-sm text-green-600 text-center font-medium">
+										Tebrikler! Makaleniz yayın için onaylandı
+									</p>
+								)}
+								{articleWithAuthor.status === 'published' && (
+									<p className="text-sm text-green-700 text-center font-medium">Makaleniz başarıyla yayınlandı</p>
+								)}
+							</div>
+						</CardContent>
+					</Card>
+
+					{/* Quick Stats */}
+					<Card>
+						<CardHeader>
+							<CardTitle>Hızlı Bilgiler</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-3 text-sm">
+								<div className="flex items-center justify-between">
+									<span className="text-gray-600">Makale ID</span>
+									<span className="font-mono text-xs">{articleWithAuthor.id.slice(0, 8)}...</span>
+								</div>
+								<Separator />
+								<div className="flex items-center justify-between">
+									<span className="text-gray-600">Anahtar Kelime</span>
+									<span className="font-medium">{articleWithAuthor.keywords?.length || 0}</span>
+								</div>
+								<Separator />
+								<div className="flex items-center justify-between">
+									<span className="text-gray-600">Kategori</span>
+									<span className="font-medium">{articleWithAuthor.category || 'Genel'}</span>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+
+					{/* Help Card */}
+					{isAuthor && (
+						<Card className="bg-blue-50 border-blue-200">
+							<CardHeader>
+								<CardTitle className="text-blue-900">Yardım</CardTitle>
+							</CardHeader>
+							<CardContent className="text-sm text-blue-800 space-y-2">
+								<p>
+									<strong>Makale Takibi:</strong> Soldaki zaman çizelgesinden makalenizin tüm süreçlerini takip
+									edebilirsiniz.
+								</p>
+								<p>
+									<strong>Revizyon İstendi mi?</strong> Editör veya hakemlerden gelen önerilere göre makalenizi
+									güncelleyin.
+								</p>
+							</CardContent>
+						</Card>
 					)}
-				</CardContent>
-			</Card>
+				</div>
+			</div>
 		</div>
 	)
 }

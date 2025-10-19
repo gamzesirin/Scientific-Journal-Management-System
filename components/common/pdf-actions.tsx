@@ -20,7 +20,7 @@ function extractFilePath(fileUrl: string): string {
 		const pathParts = url.pathname.split('/').filter(Boolean)
 
 		// Find 'articles' bucket in path and get everything after it
-		const bucketIndex = pathParts.findIndex(part => part === 'articles')
+		const bucketIndex = pathParts.findIndex((part) => part === 'articles')
 
 		if (bucketIndex === -1) {
 			throw new Error('Invalid file URL format')
@@ -88,29 +88,15 @@ export function PDFDownloadButton({
 
 	if (iconOnly) {
 		return (
-			<Button
-				variant={variant}
-				size={size}
-				onClick={handleDownload}
-				disabled={loading}
-			>
+			<Button variant={variant} size={size} onClick={handleDownload} disabled={loading}>
 				{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
 			</Button>
 		)
 	}
 
 	return (
-		<Button
-			variant={variant}
-			size={size}
-			onClick={handleDownload}
-			disabled={loading}
-		>
-			{loading ? (
-				<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-			) : (
-				<Download className="h-4 w-4 mr-2" />
-			)}
+		<Button variant={variant} size={size} onClick={handleDownload} disabled={loading}>
+			{loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
 			{showLabel && 'İndir'}
 		</Button>
 	)
@@ -150,54 +136,25 @@ export function PDFViewButton({
 
 	if (iconOnly) {
 		return (
-			<Button
-				variant={variant}
-				size={size}
-				onClick={handleView}
-				disabled={loading}
-			>
+			<Button variant={variant} size={size} onClick={handleView} disabled={loading}>
 				{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
 			</Button>
 		)
 	}
 
 	return (
-		<Button
-			variant={variant}
-			size={size}
-			onClick={handleView}
-			disabled={loading}
-		>
-			{loading ? (
-				<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-			) : (
-				<Eye className="h-4 w-4 mr-2" />
-			)}
+		<Button variant={variant} size={size} onClick={handleView} disabled={loading}>
+			{loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
 			{showLabel && 'Görüntüle'}
 		</Button>
 	)
 }
 
-export function PDFCombinedActions({
-	fileUrl,
-	fileName = 'makale.pdf',
-	size = 'sm'
-}: PDFActionsProps) {
+export function PDFCombinedActions({ fileUrl, fileName = 'makale.pdf', size = 'sm' }: PDFActionsProps) {
 	return (
 		<div className="flex gap-2">
-			<PDFViewButton
-				fileUrl={fileUrl}
-				size={size}
-				showLabel={false}
-				iconOnly={true}
-			/>
-			<PDFDownloadButton
-				fileUrl={fileUrl}
-				fileName={fileName}
-				size={size}
-				showLabel={false}
-				iconOnly={true}
-			/>
+			<PDFViewButton fileUrl={fileUrl} size={size} showLabel={false} iconOnly={true} />
+			<PDFDownloadButton fileUrl={fileUrl} fileName={fileName} size={size} showLabel={false} iconOnly={true} />
 		</div>
 	)
 }

@@ -33,13 +33,16 @@ export default async function ReviewPage({ params }: PageProps) {
 		redirect('/dashboard')
 	}
 
-	// Get assignment details
-	const { data: assignment, error: assignmentError } = await supabase
+	// Get assignment details - EN SON atamasını al (revizyon durumunda birden fazla olabilir)
+	const { data: assignments, error: assignmentError } = await supabase
 		.from('assignments')
 		.select('*')
 		.eq('article_id', paperId)
 		.eq('reviewer_id', user.id)
-		.single()
+		.order('assigned_at', { ascending: false }) // En son atamasını al
+		.limit(1)
+
+	const assignment = assignments?.[0]
 
 	console.log('Assignment lookup:', { paperId, userId: user.id, assignment, assignmentError })
 
@@ -76,13 +79,16 @@ export default async function ReviewPage({ params }: PageProps) {
 		author
 	}
 
-	// Get existing review
-	const { data: existingReview } = await supabase
+	// Get existing review for this assignment
+	const { data: existingReviews } = await supabase
 		.from('reviews')
 		.select('*')
-		.eq('article_id', paperId)
+		.eq('assignment_id', assignment.id)
 		.eq('reviewer_id', user.id)
-		.single()
+		.order('created_at', { ascending: false })
+		.limit(1)
+
+	const existingReview = existingReviews?.[0]
 
 	// Dosya URL'sinden gerçek dosya adını çıkar
 	const getFileNameFromUrl = (url: string) => {

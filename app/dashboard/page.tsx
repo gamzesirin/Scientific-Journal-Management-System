@@ -9,6 +9,10 @@ import AdminDashboard from '@/features/dashboard/components/AdminDashboard'
 import { Article } from '@/features/articles/types/article.types'
 import { AdminStats } from '@/features/dashboard/types/dashboard.types'
 
+// Disable cache for dashboard to always show fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function DashboardPage() {
 	const supabase = await createServerSupabaseClient()
 	const {
@@ -291,13 +295,20 @@ export default async function DashboardPage() {
 
 			// Eğer join başarılı olduysa
 			if (assignmentsWithArticles && !assignmentsError) {
+				// Her article için kaç kez assignment yapıldığını hesapla (revision round)
+				const assignmentCountByArticle = assignmentsWithArticles.reduce((acc, assignment) => {
+					acc[assignment.article_id] = (acc[assignment.article_id] || 0) + 1
+					return acc
+				}, {} as Record<string, number>)
+
 				dashboardData.assignedPapers = assignmentsWithArticles.map((assignment) => ({
 					...assignment.articles,
 					article_id: assignment.article_id,
 					deadline: assignment.deadline,
 					assigned_at: assignment.assigned_at,
 					assignment_status: assignment.status,
-					assignment_id: assignment.id
+					assignment_id: assignment.id,
+					revision_round: assignmentCountByArticle[assignment.article_id] || 1 // Kaçıncı tur
 				}))
 			}
 			// Join başarısız olduysa, eski yöntemi dene
@@ -327,6 +338,12 @@ export default async function DashboardPage() {
 
 					const articlesMap = new Map(articles?.map((a) => [a.id, a]) || [])
 
+					// Her article için kaç kez assignment yapıldığını hesapla (revision round)
+					const assignmentCountByArticle = assignments.reduce((acc, assignment) => {
+						acc[assignment.article_id] = (acc[assignment.article_id] || 0) + 1
+						return acc
+					}, {} as Record<string, number>)
+
 					// Transform assignments to match expected format
 					dashboardData.assignedPapers =
 						assignments
@@ -344,7 +361,8 @@ export default async function DashboardPage() {
 									deadline: assignment.deadline,
 									assigned_at: assignment.assigned_at,
 									assignment_status: assignment.status,
-									assignment_id: assignment.id
+									assignment_id: assignment.id,
+									revision_round: assignmentCountByArticle[assignment.article_id] || 1 // Kaçıncı tur
 								}
 							})
 							.filter(Boolean) || []
@@ -367,6 +385,8 @@ export default async function DashboardPage() {
 			const { count: totalUsers } = await supabase.from('users').select('*', { count: 'exact', head: true })
 
 			const { count: totalPapers } = await supabase.from('articles').select('*', { count: 'exact', head: true })
+
+			const { count: totalReviews } = await supabase.from('reviews').select('*', { count: 'exact', head: true })
 
 			// Rol bazlı kullanıcı sayıları
 			const { data: usersByRole } = await supabase.from('users').select('role')
@@ -402,6 +422,7 @@ export default async function DashboardPage() {
 				accepted: number
 				rejected: number
 				published: number
+				resubmitted: number
 				[key: string]: number
 			}
 
@@ -416,14 +437,50 @@ export default async function DashboardPage() {
 					revision_requested: 0,
 					accepted: 0,
 					rejected: 0,
-					published: 0
+					published: 0,
+					resubmitted: 0
 				}
 			)
+
+			// Desk Evaluation istatistikleri
+			const { data: deskEvals } = await supabase.from('editor_desk_evaluations').select('decision')
+
+			const deskEvalStats = deskEvals?.reduce(
+				(acc, eval_) => {
+					acc.total++
+					if (eval_.decision === 'approve_for_review') acc.approved++
+					else if (eval_.decision === 'reject') acc.rejected++
+					else if (eval_.decision === 'pending') acc.pending++
+					return acc
+				},
+				{ total: 0, approved: 0, rejected: 0, pending: 0 }
+			) || { total: 0, approved: 0, rejected: 0, pending: 0 }
+
+			// Ortak yazar istatistikleri
+			const { count: totalCoauthors } = await supabase
+				.from('article_coauthors')
+				.select('*', { count: 'exact', head: true })
+
+			const { data: coauthorArticles } = await supabase.from('article_coauthors').select('article_id')
+
+			const uniqueArticlesWithCoauthors = new Set(coauthorArticles?.map((c) => c.article_id)).size
+
+			const averageCoauthors =
+				totalCoauthors && uniqueArticlesWithCoauthors ? (totalCoauthors / uniqueArticlesWithCoauthors).toFixed(1) : 0
+
+			// Revizyon istatistikleri
+			const { count: totalRevisions } = await supabase
+				.from('article_versions')
+				.select('*', { count: 'exact', head: true })
+
+			const { data: revisionArticles } = await supabase.from('article_versions').select('article_id')
+
+			const papersWithRevisions = new Set(revisionArticles?.map((r) => r.article_id)).size
 
 			dashboardData.stats = {
 				totalUsers: totalUsers || 0,
 				totalPapers: totalPapers || 0,
-				totalReviews: 0, // TODO: reviews tablosu oluşturulduktan sonra
+				totalReviews: totalReviews || 0,
 				usersByRole: roleCounts || {
 					admin: 0,
 					editor: 0,
@@ -433,9 +490,21 @@ export default async function DashboardPage() {
 				papersByStatus: statusCounts || {
 					submitted: 0,
 					under_review: 0,
+					revision_requested: 0,
 					accepted: 0,
 					rejected: 0,
-					published: 0
+					published: 0,
+					resubmitted: 0
+				},
+				deskEvaluations: deskEvalStats,
+				coauthors: {
+					totalPapersWithCoauthors: uniqueArticlesWithCoauthors,
+					totalCoauthors: totalCoauthors || 0,
+					averageCoauthorsPerPaper: Number(averageCoauthors)
+				},
+				revisions: {
+					totalRevisions: totalRevisions || 0,
+					papersWithRevisions
 				}
 			}
 			break

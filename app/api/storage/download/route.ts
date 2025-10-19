@@ -6,12 +6,12 @@ export async function GET(request: NextRequest) {
 		const supabase = await createServerSupabaseClient()
 
 		// Check authentication
-		const { data: { user }, error: authError } = await supabase.auth.getUser()
+		const {
+			data: { user },
+			error: authError
+		} = await supabase.auth.getUser()
 		if (authError || !user) {
-			return NextResponse.json(
-				{ error: 'Unauthorized' },
-				{ status: 401 }
-			)
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 		}
 
 		// Get file path from query params
@@ -19,32 +19,21 @@ export async function GET(request: NextRequest) {
 		const filePath = searchParams.get('path')
 
 		if (!filePath) {
-			return NextResponse.json(
-				{ error: 'File path is required' },
-				{ status: 400 }
-			)
+			return NextResponse.json({ error: 'File path is required' }, { status: 400 })
 		}
 
 		console.log('Downloading file from path:', filePath)
 
 		// Download file from Supabase storage with authentication
-		const { data, error } = await supabase.storage
-			.from('articles')
-			.download(filePath)
+		const { data, error } = await supabase.storage.from('articles').download(filePath)
 
 		if (error) {
 			console.error('Storage download error:', error)
-			return NextResponse.json(
-				{ error: error.message, details: error },
-				{ status: 404 }
-			)
+			return NextResponse.json({ error: error.message, details: error }, { status: 404 })
 		}
 
 		if (!data) {
-			return NextResponse.json(
-				{ error: 'File not found' },
-				{ status: 404 }
-			)
+			return NextResponse.json({ error: 'File not found' }, { status: 404 })
 		}
 
 		// Convert blob to buffer

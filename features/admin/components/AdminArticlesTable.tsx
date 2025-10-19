@@ -25,28 +25,24 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { Eye, Trash2, Search, Edit, XCircle, Users, UserCog } from 'lucide-react'
+import { Eye, Trash2, Search, Edit, XCircle, UserCog, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import PublishArticleDialog from './PublishArticleDialog'
+import { Article } from '@/features/articles/types/article.types'
 
-interface Article {
-	id: string
-	title: string
-	status: string
+interface AdminArticle extends Article {
 	author?: {
 		name: string
 		email: string
 	}
-	assigned_editor_id?: string | null
-	created_at: string
-	updated_at: string
 }
 
 interface AdminArticlesTableProps {
-	articles: Article[]
+	articles: AdminArticle[]
 }
 
 interface Editor {
@@ -61,7 +57,8 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 	const [statusDialogOpen, setStatusDialogOpen] = useState(false)
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 	const [editorDialogOpen, setEditorDialogOpen] = useState(false)
-	const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
+	const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+	const [selectedArticle, setSelectedArticle] = useState<AdminArticle | null>(null)
 	const [newStatus, setNewStatus] = useState('')
 	const [selectedEditorId, setSelectedEditorId] = useState('unassign')
 	const [editors, setEditors] = useState<Editor[]>([])
@@ -101,24 +98,29 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 			article.status.toLowerCase().includes(searchTerm.toLowerCase())
 	)
 
-	const handleStatusClick = (article: Article) => {
+	const handleStatusClick = (article: AdminArticle) => {
 		setSelectedArticle(article)
 		setNewStatus(article.status)
 		setStatusDialogOpen(true)
 	}
 
-	const handleDeleteClick = (article: Article) => {
+	const handleDeleteClick = (article: AdminArticle) => {
 		setSelectedArticle(article)
 		setDeleteDialogOpen(true)
 	}
 
-	const handleEditorClick = (article: Article) => {
+	const handleEditorClick = (article: AdminArticle) => {
 		setSelectedArticle(article)
 		setSelectedEditorId(article.assigned_editor_id || 'unassign')
 		setEditorDialogOpen(true)
 	}
 
-	const handleRejectClick = async (article: Article) => {
+	const handlePublishClick = (article: AdminArticle) => {
+		setSelectedArticle(article)
+		setPublishDialogOpen(true)
+	}
+
+	const handleRejectClick = async (article: AdminArticle) => {
 		setIsSubmitting(true)
 		try {
 			const response = await fetch(`/api/admin/articles/${article.id}`, {
@@ -332,12 +334,17 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 												<Eye className="h-4 w-4" />
 											</Button>
 										</Link>
-										{article.status === 'submitted' && (
-											<Link href={`/editor/articles/${article.id}/assign`}>
-												<Button size="sm" variant="secondary" title="Hakem Ata">
-													<Users className="h-4 w-4" />
-												</Button>
-											</Link>
+										{article.status === 'accepted' && (
+											<Button
+												variant="default"
+												size="sm"
+												onClick={() => handlePublishClick(article)}
+												className="bg-green-600 hover:bg-green-700"
+												title="Yayınla"
+											>
+												<Sparkles className="h-4 w-4 mr-1" />
+												Yayınla
+											</Button>
 										)}
 										<Button
 											variant="outline"
@@ -347,7 +354,7 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 										>
 											<Edit className="h-4 w-4" />
 										</Button>
-										{article.status !== 'rejected' && (
+										{article.status !== 'rejected' && article.status !== 'published' && (
 											<Button
 												variant="destructive"
 												size="sm"
@@ -471,6 +478,16 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			{/* Publish Article Dialog */}
+			{selectedArticle && (
+				<PublishArticleDialog
+					article={selectedArticle}
+					open={publishDialogOpen}
+					onOpenChange={setPublishDialogOpen}
+					onSuccess={() => router.refresh()}
+				/>
+			)}
 		</div>
 	)
 }

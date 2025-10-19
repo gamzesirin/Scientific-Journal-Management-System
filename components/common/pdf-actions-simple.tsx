@@ -20,7 +20,7 @@ function extractFilePath(fileUrl: string): string {
 		const pathParts = url.pathname.split('/').filter(Boolean)
 
 		// Find 'articles' bucket in path and get everything after it
-		const bucketIndex = pathParts.findIndex(part => part === 'articles')
+		const bucketIndex = pathParts.findIndex((part) => part === 'articles')
 
 		if (bucketIndex === -1) {
 			throw new Error('Invalid file URL format')
@@ -153,11 +153,7 @@ export function PDFViewButtonSimple({
 	)
 }
 
-export function PDFCombinedActionsSimple({
-	fileUrl,
-	fileName = 'makale.pdf',
-	size = 'sm'
-}: PDFActionsProps) {
+export function PDFCombinedActionsSimple({ fileUrl, fileName = 'makale.pdf', size = 'sm' }: PDFActionsProps) {
 	return (
 		<div className="flex gap-2">
 			<PDFViewButtonSimple fileUrl={fileUrl} size={size} showLabel={false} iconOnly={true} />

@@ -9,13 +9,53 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import { toast } from '@/lib/toast'
+import { X, UserPlus } from 'lucide-react'
 
 export default function ArticleUploadForm() {
 	const [loading, setLoading] = useState(false)
+	const [coauthors, setCoauthors] = useState<Array<{ email: string; name: string; affiliation?: string }>>([])
+	const [coauthorEmail, setCoauthorEmail] = useState('')
+	const [coauthorName, setCoauthorName] = useState('')
+	const [coauthorAffiliation, setCoauthorAffiliation] = useState('')
 	const formRef = useRef<HTMLFormElement>(null)
 	const router = useRouter()
 	const supabase = createClient()
+
+	// Ortak yazar ekle
+	const handleAddCoauthor = () => {
+		if (!coauthorEmail.trim() || !coauthorName.trim()) {
+			toast.error('E-posta ve isim gerekli')
+			return
+		}
+
+		// Email format kontrolü
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+		if (!emailRegex.test(coauthorEmail)) {
+			toast.error('Geçerli bir e-posta adresi girin')
+			return
+		}
+
+		// Aynı email zaten eklenmişse
+		if (coauthors.some((c) => c.email === coauthorEmail)) {
+			toast.error('Bu e-posta zaten eklenmiş')
+			return
+		}
+
+		setCoauthors([...coauthors, { email: coauthorEmail, name: coauthorName, affiliation: coauthorAffiliation }])
+		setCoauthorEmail('')
+		setCoauthorName('')
+		setCoauthorAffiliation('')
+		toast.success('Ortak yazar eklendi')
+	}
+
+	// Ortak yazar çıkar
+	const handleRemoveCoauthor = (email: string) => {
+		setCoauthors(coauthors.filter((c) => c.email !== email))
+		toast.success('Ortak yazar kaldırıldı')
+	}
 
 	async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()
@@ -44,9 +84,7 @@ export default function ArticleUploadForm() {
 			if (file && file.size > 0) {
 				const fileExt = file.name.split('.').pop()
 				const fileName = `${user.id}/${Date.now()}.${fileExt}`
-				const { error: uploadError } = await supabase.storage
-					.from('articles')
-					.upload(fileName, file)
+				const { error: uploadError } = await supabase.storage.from('articles').upload(fileName, file)
 
 				if (uploadError) {
 					throw uploadError
@@ -60,7 +98,7 @@ export default function ArticleUploadForm() {
 			}
 
 			// Makaleyi veritabanına kaydet
-			const { error: insertError } = await supabase
+			const { data: newArticle, error: insertError } = await supabase
 				.from('articles')
 				.insert({
 					title,
@@ -78,10 +116,33 @@ export default function ArticleUploadForm() {
 				throw insertError
 			}
 
+			// Ortak yazarları ekle (varsa)
+			if (coauthors.length > 0 && newArticle?.id) {
+				for (const coauthor of coauthors) {
+					try {
+						const response = await fetch(`/api/articles/${newArticle.id}/coauthors`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(coauthor)
+						})
+
+						if (!response.ok) {
+							const error = await response.json()
+							console.error('Ortak yazar eklenirken hata:', coauthor.email, error)
+							// Hata olsa bile devam et, diğer ortak yazarları eklemeyi dene
+						}
+					} catch (err) {
+						console.error('Ortak yazar eklenirken hata:', err)
+						// Hata olsa bile devam et
+					}
+				}
+			}
+
 			// Formu temizle
 			formRef.current?.reset()
+			setCoauthors([])
 
-			toast.success('Başarılı!', 'Makaleniz başarıyla yüklendi.')
+			toast.success('Başarılı!', 'Makaleniz ve ortak yazarlar başarıyla yüklendi.')
 			setTimeout(() => {
 				router.push('/dashboard')
 				router.refresh()
@@ -155,6 +216,110 @@ export default function ArticleUploadForm() {
 						<Input id="file" name="file" type="file" accept=".pdf,.doc,.docx" required />
 						<p className="text-sm text-muted-foreground">PDF veya Word formatında yükleyebilirsiniz (Max: 10MB)</p>
 					</div>
+
+					<Separator className="my-6" />
+
+					{/* Ortak Yazar Ekleme */}
+					<div className="space-y-4">
+						<div>
+							<Label className="text-base font-semibold flex items-center gap-2">
+								<UserPlus className="h-4 w-4" />
+								Ortak Yazarlar (Opsiyonel)
+							</Label>
+							<p className="text-sm text-muted-foreground mt-1">
+								Makaleye katkıda bulunan diğer yazarları ekleyebilirsiniz
+							</p>
+						</div>
+
+						{/* Ortak Yazar Formu */}
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<div className="space-y-1">
+								<Label htmlFor="coauthor-email" className="text-xs">
+									E-posta
+								</Label>
+								<Input
+									id="coauthor-email"
+									type="email"
+									placeholder="ornek@email.com"
+									value={coauthorEmail}
+									onChange={(e) => setCoauthorEmail(e.target.value)}
+									onKeyPress={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault()
+											handleAddCoauthor()
+										}
+									}}
+								/>
+							</div>
+							<div className="space-y-1">
+								<Label htmlFor="coauthor-name" className="text-xs">
+									İsim Soyisim
+								</Label>
+								<Input
+									id="coauthor-name"
+									placeholder="Ad Soyad"
+									value={coauthorName}
+									onChange={(e) => setCoauthorName(e.target.value)}
+									onKeyPress={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault()
+											handleAddCoauthor()
+										}
+									}}
+								/>
+							</div>
+							<div className="space-y-1">
+								<Label htmlFor="coauthor-affiliation" className="text-xs">
+									Kurum (Opsiyonel)
+								</Label>
+								<Input
+									id="coauthor-affiliation"
+									placeholder="Üniversite/Kurum"
+									value={coauthorAffiliation}
+									onChange={(e) => setCoauthorAffiliation(e.target.value)}
+									onKeyPress={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault()
+											handleAddCoauthor()
+										}
+									}}
+								/>
+							</div>
+						</div>
+						<Button type="button" variant="outline" onClick={handleAddCoauthor} className="w-full md:w-auto">
+							<UserPlus className="h-4 w-4 mr-2" />
+							Ortak Yazar Ekle
+						</Button>
+
+						{/* Eklenen Ortak Yazarlar Listesi */}
+						{coauthors.length > 0 && (
+							<div className="space-y-2">
+								<Label className="text-sm font-medium">Eklenen Ortak Yazarlar ({coauthors.length})</Label>
+								<div className="space-y-2">
+									{coauthors.map((coauthor, index) => (
+										<div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+											<div className="flex-1">
+												<p className="font-medium text-sm">{coauthor.name}</p>
+												<p className="text-xs text-gray-600">{coauthor.email}</p>
+												{coauthor.affiliation && <p className="text-xs text-gray-500">{coauthor.affiliation}</p>}
+											</div>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => handleRemoveCoauthor(coauthor.email)}
+												className="text-red-600 hover:text-red-700 hover:bg-red-50"
+											>
+												<X className="h-4 w-4" />
+											</Button>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+					</div>
+
+					<Separator className="my-6" />
 
 					<Button type="submit" className="w-full" disabled={loading}>
 						{loading ? 'Yükleniyor...' : 'Makaleyi Yükle'}
