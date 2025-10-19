@@ -30,6 +30,11 @@ export default async function AdminReportsPage() {
 	const { data: articles } = await supabase.from('articles').select('status, created_at')
 	const { data: users } = await supabase.from('users').select('role, created_at')
 	const { data: reviews } = await supabase.from('reviews').select('status, created_at')
+	const { data: deskEvaluations } = await supabase.from('editor_desk_evaluations').select('decision, created_at')
+	const { data: coauthors } = await supabase.from('article_coauthors').select('id, article_id, created_at')
+	const { data: revisions } = await supabase
+		.from('article_versions')
+		.select('id, article_id, version_number, created_at')
 
 	// Son aktiviteleri çek - makaleler, kullanıcılar, değerlendirmeler ve kararları birleştir
 	const activities = []
@@ -50,13 +55,10 @@ export default async function AdminReportsPage() {
 			.limit(5)
 
 		if (articlesSimple) {
-			const authorIds = [...new Set(articlesSimple.map(a => a.author_id))]
-			const { data: authors } = await supabase
-				.from('users')
-				.select('id, name')
-				.in('id', authorIds)
+			const authorIds = [...new Set(articlesSimple.map((a) => a.author_id))]
+			const { data: authors } = await supabase.from('users').select('id, name').in('id', authorIds)
 
-			const authorsMap = new Map(authors?.map(a => [a.id, a.name]) || [])
+			const authorsMap = new Map(authors?.map((a) => [a.id, a.name]) || [])
 
 			for (const article of articlesSimple) {
 				activities.push({
@@ -87,7 +89,9 @@ export default async function AdminReportsPage() {
 	// Son değerlendirmeleri al
 	const { data: recentReviews } = await supabase
 		.from('reviews')
-		.select('id, article_id, reviewer_id, created_at, users!reviews_reviewer_id_fkey(name), articles!reviews_article_id_fkey(title)')
+		.select(
+			'id, article_id, reviewer_id, created_at, users!reviews_reviewer_id_fkey(name), articles!reviews_article_id_fkey(title)'
+		)
 		.order('created_at', { ascending: false })
 		.limit(5)
 
@@ -100,21 +104,15 @@ export default async function AdminReportsPage() {
 			.limit(5)
 
 		if (reviewsSimple) {
-			const reviewerIds = [...new Set(reviewsSimple.map(r => r.reviewer_id))]
-			const articleIds = [...new Set(reviewsSimple.map(r => r.article_id))]
+			const reviewerIds = [...new Set(reviewsSimple.map((r) => r.reviewer_id))]
+			const articleIds = [...new Set(reviewsSimple.map((r) => r.article_id))]
 
-			const { data: reviewers } = await supabase
-				.from('users')
-				.select('id, name')
-				.in('id', reviewerIds)
+			const { data: reviewers } = await supabase.from('users').select('id, name').in('id', reviewerIds)
 
-			const { data: reviewArticles } = await supabase
-				.from('articles')
-				.select('id, title')
-				.in('id', articleIds)
+			const { data: reviewArticles } = await supabase.from('articles').select('id, title').in('id', articleIds)
 
-			const reviewersMap = new Map(reviewers?.map(r => [r.id, r.name]) || [])
-			const articlesMap = new Map(reviewArticles?.map(a => [a.id, a.title]) || [])
+			const reviewersMap = new Map(reviewers?.map((r) => [r.id, r.name]) || [])
+			const articlesMap = new Map(reviewArticles?.map((a) => [a.id, a.title]) || [])
 
 			for (const review of reviewsSimple) {
 				activities.push({
@@ -145,7 +143,9 @@ export default async function AdminReportsPage() {
 	// Son kararları al
 	const { data: recentDecisions } = await supabase
 		.from('decisions')
-		.select('id, article_id, decision_type, created_at, users!decisions_editor_id_fkey(name), articles!decisions_article_id_fkey(title)')
+		.select(
+			'id, article_id, decision_type, created_at, users!decisions_editor_id_fkey(name), articles!decisions_article_id_fkey(title)'
+		)
 		.order('created_at', { ascending: false })
 		.limit(5)
 
@@ -158,38 +158,41 @@ export default async function AdminReportsPage() {
 			.limit(5)
 
 		if (decisionsSimple) {
-			const editorIds = [...new Set(decisionsSimple.map(d => d.editor_id))]
-			const articleIds = [...new Set(decisionsSimple.map(d => d.article_id))]
+			const editorIds = [...new Set(decisionsSimple.map((d) => d.editor_id))]
+			const articleIds = [...new Set(decisionsSimple.map((d) => d.article_id))]
 
-			const { data: editors } = await supabase
-				.from('users')
-				.select('id, name')
-				.in('id', editorIds)
+			const { data: editors } = await supabase.from('users').select('id, name').in('id', editorIds)
 
-			const { data: decisionArticles } = await supabase
-				.from('articles')
-				.select('id, title')
-				.in('id', articleIds)
+			const { data: decisionArticles } = await supabase.from('articles').select('id, title').in('id', articleIds)
 
-			const editorsMap = new Map(editors?.map(e => [e.id, e.name]) || [])
-			const articlesMap = new Map(decisionArticles?.map(a => [a.id, a.title]) || [])
+			const editorsMap = new Map(editors?.map((e) => [e.id, e.name]) || [])
+			const articlesMap = new Map(decisionArticles?.map((a) => [a.id, a.title]) || [])
 
 			for (const decision of decisionsSimple) {
-				const decisionLabel = decision.decision_type === 'accept' ? 'Kabul' : decision.decision_type === 'reject' ? 'Red' : 'Revizyon'
+				const decisionLabel =
+					decision.decision_type === 'accept' ? 'Kabul' : decision.decision_type === 'reject' ? 'Red' : 'Revizyon'
 				activities.push({
 					id: `decision-${decision.id}`,
 					type: 'decision' as const,
 					action: 'Editöryal Karar',
-					description: `"${articlesMap.get(decision.article_id) || 'Bilinmeyen Makale'}" için ${decisionLabel} kararı verildi`,
+					description: `"${
+						articlesMap.get(decision.article_id) || 'Bilinmeyen Makale'
+					}" için ${decisionLabel} kararı verildi`,
 					user: editorsMap.get(decision.editor_id) || 'Bilinmeyen Editör',
 					created_at: decision.created_at,
-					status: decision.decision_type === 'accept' ? 'success' as const : decision.decision_type === 'reject' ? 'error' as const : 'info' as const
+					status:
+						decision.decision_type === 'accept'
+							? ('success' as const)
+							: decision.decision_type === 'reject'
+							? ('error' as const)
+							: ('info' as const)
 				})
 			}
 		}
 	} else {
 		for (const decision of recentDecisions) {
-			const decisionLabel = decision.decision_type === 'accept' ? 'Kabul' : decision.decision_type === 'reject' ? 'Red' : 'Revizyon'
+			const decisionLabel =
+				decision.decision_type === 'accept' ? 'Kabul' : decision.decision_type === 'reject' ? 'Red' : 'Revizyon'
 			activities.push({
 				id: `decision-${decision.id}`,
 				type: 'decision' as const,
@@ -197,7 +200,88 @@ export default async function AdminReportsPage() {
 				description: `"${decision.articles?.title || 'Bilinmeyen Makale'}" için ${decisionLabel} kararı verildi`,
 				user: decision.users?.name || 'Bilinmeyen Editör',
 				created_at: decision.created_at,
-				status: decision.decision_type === 'accept' ? 'success' as const : decision.decision_type === 'reject' ? 'error' as const : 'info' as const
+				status:
+					decision.decision_type === 'accept'
+						? ('success' as const)
+						: decision.decision_type === 'reject'
+						? ('error' as const)
+						: ('info' as const)
+			})
+		}
+	}
+
+	// Son desk evaluations'ları al
+	const { data: recentDeskEvals } = await supabase
+		.from('editor_desk_evaluations')
+		.select(
+			'id, article_id, decision, created_at, users!editor_desk_evaluations_editor_id_fkey(name), articles!editor_desk_evaluations_article_id_fkey(title)'
+		)
+		.order('created_at', { ascending: false })
+		.limit(5)
+
+	// Fallback
+	if (!recentDeskEvals) {
+		const { data: deskEvalsSimple } = await supabase
+			.from('editor_desk_evaluations')
+			.select('id, article_id, editor_id, decision, created_at')
+			.order('created_at', { ascending: false })
+			.limit(5)
+
+		if (deskEvalsSimple) {
+			const editorIds = [...new Set(deskEvalsSimple.map((d) => d.editor_id))]
+			const articleIds = [...new Set(deskEvalsSimple.map((d) => d.article_id))]
+
+			const { data: editors } = await supabase.from('users').select('id, name').in('id', editorIds)
+
+			const { data: deskEvalArticles } = await supabase.from('articles').select('id, title').in('id', articleIds)
+
+			const editorsMap = new Map(editors?.map((e) => [e.id, e.name]) || [])
+			const articlesMap = new Map(deskEvalArticles?.map((a) => [a.id, a.title]) || [])
+
+			for (const deskEval of deskEvalsSimple) {
+				const decisionLabel =
+					deskEval.decision === 'approve_for_review'
+						? 'Onaylandı'
+						: deskEval.decision === 'reject'
+						? 'Reddedildi'
+						: 'Beklemede'
+				activities.push({
+					id: `desk-eval-${deskEval.id}`,
+					type: 'desk_evaluation' as const,
+					action: 'Desk Evaluation',
+					description: `"${articlesMap.get(deskEval.article_id) || 'Bilinmeyen Makale'}" - ${decisionLabel}`,
+					user: editorsMap.get(deskEval.editor_id) || 'Bilinmeyen Editör',
+					created_at: deskEval.created_at,
+					status:
+						deskEval.decision === 'approve_for_review'
+							? ('success' as const)
+							: deskEval.decision === 'reject'
+							? ('error' as const)
+							: ('info' as const)
+				})
+			}
+		}
+	} else {
+		for (const deskEval of recentDeskEvals) {
+			const decisionLabel =
+				deskEval.decision === 'approve_for_review'
+					? 'Onaylandı'
+					: deskEval.decision === 'reject'
+					? 'Reddedildi'
+					: 'Beklemede'
+			activities.push({
+				id: `desk-eval-${deskEval.id}`,
+				type: 'desk_evaluation' as const,
+				action: 'Desk Evaluation',
+				description: `"${deskEval.articles?.title || 'Bilinmeyen Makale'}" - ${decisionLabel}`,
+				user: deskEval.users?.name || 'Bilinmeyen Editör',
+				created_at: deskEval.created_at,
+				status:
+					deskEval.decision === 'approve_for_review'
+						? ('success' as const)
+						: deskEval.decision === 'reject'
+						? ('error' as const)
+						: ('info' as const)
 			})
 		}
 	}
@@ -207,6 +291,10 @@ export default async function AdminReportsPage() {
 
 	// İlk 10 aktiviteyi al
 	const recentActivities = activities.slice(0, 10)
+
+	// İstatistikler
+	const uniqueArticlesWithCoauthors = new Set(coauthors?.map((c) => c.article_id)).size
+	const uniqueArticlesWithRevisions = new Set(revisions?.map((r) => r.article_id)).size
 
 	return (
 		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
@@ -224,15 +312,9 @@ export default async function AdminReportsPage() {
 							<div className="flex items-center justify-between">
 								<div>
 									<CardTitle className="text-2xl">Raporlar ve İstatistikler</CardTitle>
-									<CardDescription>
-										Sistem genelindeki aktiviteleri ve istatistikleri görüntüleyin
-									</CardDescription>
+									<CardDescription>Sistem genelindeki aktiviteleri ve istatistikleri görüntüleyin</CardDescription>
 								</div>
-								<DownloadReportButton
-									articles={articles || []}
-									users={users || []}
-									reviews={reviews || []}
-								/>
+								<DownloadReportButton articles={articles || []} users={users || []} reviews={reviews || []} />
 							</div>
 						</CardHeader>
 					</Card>
@@ -241,29 +323,58 @@ export default async function AdminReportsPage() {
 				{/* Reports */}
 				<div className="space-y-6">
 					{/* Overview Stats */}
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
 						<Card>
-							<CardHeader>
-								<CardTitle>Toplam Kullanıcı</CardTitle>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm">Toplam Kullanıcı</CardTitle>
 							</CardHeader>
 							<CardContent>
 								<p className="text-3xl font-bold">{users?.length || 0}</p>
 							</CardContent>
 						</Card>
 						<Card>
-							<CardHeader>
-								<CardTitle>Toplam Makale</CardTitle>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm">Toplam Makale</CardTitle>
 							</CardHeader>
 							<CardContent>
 								<p className="text-3xl font-bold">{articles?.length || 0}</p>
 							</CardContent>
 						</Card>
 						<Card>
-							<CardHeader>
-								<CardTitle>Toplam Değerlendirme</CardTitle>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm">Toplam Değerlendirme</CardTitle>
 							</CardHeader>
 							<CardContent>
 								<p className="text-3xl font-bold">{reviews?.length || 0}</p>
+							</CardContent>
+						</Card>
+						<Card className="border-blue-200 bg-blue-50/50">
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm text-blue-900">Desk Evaluations</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<p className="text-3xl font-bold text-blue-600">{deskEvaluations?.length || 0}</p>
+								<p className="text-xs text-gray-600 mt-1">
+									{deskEvaluations?.filter((d) => d.decision === 'approve_for_review').length || 0} Onaylandı
+								</p>
+							</CardContent>
+						</Card>
+						<Card className="border-green-200 bg-green-50/50">
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm text-green-900">Ortak Yazarlar</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<p className="text-3xl font-bold text-green-600">{coauthors?.length || 0}</p>
+								<p className="text-xs text-gray-600 mt-1">{uniqueArticlesWithCoauthors} Makale</p>
+							</CardContent>
+						</Card>
+						<Card className="border-purple-200 bg-purple-50/50">
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm text-purple-900">Revizyonlar</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<p className="text-3xl font-bold text-purple-600">{revisions?.length || 0}</p>
+								<p className="text-xs text-gray-600 mt-1">{uniqueArticlesWithRevisions} Makale</p>
 							</CardContent>
 						</Card>
 					</div>
@@ -274,11 +385,7 @@ export default async function AdminReportsPage() {
 							<CardTitle>Grafikler ve Analizler</CardTitle>
 						</CardHeader>
 						<CardContent>
-							<ReportsCharts
-								articles={articles || []}
-								users={users || []}
-								reviews={reviews || []}
-							/>
+							<ReportsCharts articles={articles || []} users={users || []} reviews={reviews || []} />
 						</CardContent>
 					</Card>
 
@@ -286,9 +393,7 @@ export default async function AdminReportsPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle>Son Aktiviteler</CardTitle>
-							<CardDescription>
-								Sistemdeki son 10 aktivite
-							</CardDescription>
+							<CardDescription>Sistemdeki son 10 aktivite</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<ActivityLog activities={recentActivities} />
