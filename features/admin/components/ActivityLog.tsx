@@ -5,7 +5,7 @@ import { FileText, UserPlus, MessageSquare, CheckCircle, XCircle, Edit } from 'l
 
 interface Activity {
 	id: string
-	type: 'article' | 'user' | 'review' | 'decision'
+	type: 'article' | 'user' | 'review' | 'decision' | 'desk_evaluation'
 	action: string
 	description: string
 	user: string
@@ -28,6 +28,8 @@ export default function ActivityLog({ activities }: ActivityLogProps) {
 				return <MessageSquare className="h-4 w-4" />
 			case 'decision':
 				return <CheckCircle className="h-4 w-4" />
+			case 'desk_evaluation':
+				return <Edit className="h-4 w-4" />
 			default:
 				return <Edit className="h-4 w-4" />
 		}

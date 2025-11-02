@@ -34,7 +34,7 @@ export default async function AdminBackupPage() {
 					<Link href="/dashboard">
 						<Button variant="outline" className="mb-4">
 							<ArrowLeft className="mr-2 h-4 w-4" />
-							Dashboard'a Dön
+							Dashboard&apos;a Dön
 						</Button>
 					</Link>
 					<Card>

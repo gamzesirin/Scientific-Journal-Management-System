@@ -21,7 +21,16 @@ interface AuthorDashboardProps {
 	articles: Article[]
 }
 
+// Separate co-authored articles
+const separateArticles = (articles: Article[], userId: string) => {
+	const myArticles = articles.filter((a) => !a.isCoauthor)
+	const coauthoredArticles = articles.filter((a) => a.isCoauthor)
+	return { myArticles, coauthoredArticles }
+}
+
 export default function AuthorDashboard({ user, userData, articles }: AuthorDashboardProps) {
+	const { myArticles, coauthoredArticles } = separateArticles(articles, user.id)
+
 	const stats = {
 		total: articles?.length || 0,
 		submitted: articles?.filter((a) => a.status === 'submitted').length || 0,
@@ -31,6 +40,13 @@ export default function AuthorDashboard({ user, userData, articles }: AuthorDash
 		accepted: articles?.filter((a) => a.status === 'accepted').length || 0,
 		rejected: articles?.filter((a) => a.status === 'rejected').length || 0,
 		published: articles?.filter((a) => a.status === 'published').length || 0
+	}
+
+	const coauthorStats = {
+		total: coauthoredArticles.length,
+		active: coauthoredArticles.filter(
+			(a) => a.status === 'submitted' || a.status === 'under_review' || a.status === 'resubmitted'
+		).length
 	}
 
 	return (
@@ -96,6 +112,27 @@ export default function AuthorDashboard({ user, userData, articles }: AuthorDash
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Co-author Info Card */}
+			{coauthorStats.total > 0 && (
+				<Card className="mb-6 border-purple-200 bg-purple-50/30">
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle className="text-purple-900">Ortak Yazar Olduğunuz Makaleler</CardTitle>
+								<CardDescription>
+									{coauthorStats.total} makalede ortak yazar olarak yer alıyorsunuz
+									{coauthorStats.active > 0 && `, ${coauthorStats.active} tanesi aktif inceleme sürecinde`}
+								</CardDescription>
+							</div>
+							<div className="text-right">
+								<div className="text-3xl font-bold text-purple-600">{coauthorStats.total}</div>
+								<div className="text-sm text-purple-700">Ortak Yazarlık</div>
+							</div>
+						</div>
+					</CardHeader>
+				</Card>
+			)}
 
 			{/* Tabs for different sections */}
 			<Tabs defaultValue="articles" className="space-y-6">

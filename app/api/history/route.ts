@@ -44,8 +44,35 @@ export async function GET(request: NextRequest) {
 		switch (table) {
 			case 'articles':
 				// Authors can view their own articles history
+				// Co-authors can view articles they're added to
 				// Admins and Editors can view all
-				// RLS will handle the filtering
+
+				// If requesting specific article history, check co-author permission
+				if (recordId && userData.role !== 'admin' && userData.role !== 'editor') {
+					// Check if user is the author or a co-author
+					const { data: article } = await supabase
+						.from('articles')
+						.select('author_id')
+						.eq('id', recordId)
+						.single()
+
+					const isAuthor = article?.author_id === user.id
+
+					// Check if user is a co-author
+					const { data: coauthorData } = await supabase
+						.from('article_coauthors')
+						.select('id')
+						.eq('article_id', recordId)
+						.eq('user_id', user.id)
+						.single()
+
+					const isCoauthor = !!coauthorData
+
+					if (!isAuthor && !isCoauthor) {
+						return NextResponse.json({ error: 'Forbidden - Cannot view this article history' }, { status: 403 })
+					}
+				}
+
 				query = supabase
 					.from('articles_history')
 					.select(
@@ -128,9 +155,16 @@ export async function GET(request: NextRequest) {
 
 		if (error) {
 			console.error('Error fetching history:', error)
+			console.error('Error details:', {
+				message: error.message,
+				details: error.details,
+				hint: error.hint,
+				code: error.code
+			})
 			return NextResponse.json({ error: error.message }, { status: 500 })
 		}
 
+		console.log(`History fetched successfully for ${table}, record: ${recordId}, count: ${data?.length || 0}`)
 		return NextResponse.json({ data, count: data?.length || 0 })
 	} catch (error) {
 		console.error('Error in GET /api/history:', error)

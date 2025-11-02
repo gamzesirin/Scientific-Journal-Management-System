@@ -74,10 +74,23 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 	const isAdmin = userData?.role === 'admin'
 	const isEditor = userData?.role === 'editor'
 
-	// Authors can only view their own articles
-	if (!isAuthor && !isAdmin && !isEditor) {
+	// Check if user is a co-author
+	const { data: coauthorData } = await supabase
+		.from('article_coauthors')
+		.select('id')
+		.eq('article_id', resolvedParams.id)
+		.eq('user_id', user.id)
+		.single()
+
+	const isCoauthor = !!coauthorData
+
+	// Authors, co-authors, editors, and admins can view articles
+	if (!isAuthor && !isCoauthor && !isAdmin && !isEditor) {
 		redirect('/dashboard')
 	}
+
+	// Co-authors should see details like authors
+	const canViewFullDetails = isAuthor || isCoauthor || isAdmin || isEditor
 
 	return (
 		<div className="container mx-auto py-8 space-y-6">
@@ -166,7 +179,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 					</Card>
 
 					{/* Timeline */}
-					<ArticleTimeline articleId={articleWithAuthor.id} showFullDetails={isAdmin || isEditor} />
+					<ArticleTimeline articleId={articleWithAuthor.id} showFullDetails={canViewFullDetails} />
 
 					{/* Coauthors Manager */}
 					<CoauthorsManager articleId={articleWithAuthor.id} isAuthor={isAuthor} />
@@ -247,20 +260,34 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 					</Card>
 
 					{/* Help Card */}
-					{isAuthor && (
+					{(isAuthor || isCoauthor) && (
 						<Card className="bg-blue-50 border-blue-200">
 							<CardHeader>
-								<CardTitle className="text-blue-900">Yardım</CardTitle>
+								<CardTitle className="text-blue-900">
+									{isCoauthor && !isAuthor ? 'Ortak Yazar Bilgisi' : 'Yardım'}
+								</CardTitle>
 							</CardHeader>
 							<CardContent className="text-sm text-blue-800 space-y-2">
+								{isCoauthor && !isAuthor && (
+									<p className="font-semibold text-blue-900 mb-2">
+										Bu makalede ortak yazar olarak yer alıyorsunuz.
+									</p>
+								)}
 								<p>
-									<strong>Makale Takibi:</strong> Soldaki zaman çizelgesinden makalenizin tüm süreçlerini takip
+									<strong>Makale Takibi:</strong> Soldaki zaman çizelgesinden makalenin tüm süreçlerini takip
 									edebilirsiniz.
 								</p>
-								<p>
-									<strong>Revizyon İstendi mi?</strong> Editör veya hakemlerden gelen önerilere göre makalenizi
-									güncelleyin.
-								</p>
+								{isAuthor && (
+									<p>
+										<strong>Revizyon İstendi mi?</strong> Editör veya hakemlerden gelen önerilere göre makalenizi
+										güncelleyin.
+									</p>
+								)}
+								{isCoauthor && !isAuthor && (
+									<p>
+										<strong>Not:</strong> Ortak yazar olarak makale durumunu görüntüleyebilirsiniz. Dosya yükleme ve değişiklik yapma yetkiniz bulunmamaktadır.
+									</p>
+								)}
 							</CardContent>
 						</Card>
 					)}

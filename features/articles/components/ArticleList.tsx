@@ -84,7 +84,14 @@ export default function ArticleList({ articles = [], userRole = 'author', userId
 								<TableRow key={article.id}>
 									<TableCell className="font-medium">
 										<div className="max-w-md">
-											<p className="font-semibold">{article.title}</p>
+											<div className="flex items-center gap-2 mb-1">
+												<p className="font-semibold">{article.title}</p>
+												{article.isCoauthor && (
+													<Badge variant="secondary" className="text-xs">
+														Ortak Yazar
+													</Badge>
+												)}
+											</div>
 											<p className="text-sm text-muted-foreground line-clamp-2">{article.abstract}</p>
 										</div>
 									</TableCell>

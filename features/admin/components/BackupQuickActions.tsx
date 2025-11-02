@@ -12,28 +12,38 @@ export default function BackupQuickActions() {
 	const handleCreateFullBackup = async () => {
 		setIsCreatingBackup(true)
 		try {
-			// Simüle edilen yedek oluşturma işlemi
-			await new Promise(resolve => setTimeout(resolve, 2000))
+			toast.info('Tam yedek oluşturuluyor, lütfen bekleyin...')
 
-			// Gerçek uygulamada burada API çağrısı yapılır
-			const backupData = {
-				created_at: new Date().toISOString(),
-				database_name: 'scientific-journal-db',
-				version: '1.0.0',
-				note: 'Tam yedek alındı'
+			// Create backup via API
+			const response = await fetch('/api/admin/backups', {
+				method: 'POST'
+			})
+
+			const data = await response.json()
+
+			if (response.ok) {
+				toast.success('Tam yedek başarıyla oluşturuldu')
+
+				// Download the created backup
+				const downloadResponse = await fetch(`/api/admin/backups/${data.backup.name}`)
+
+				if (downloadResponse.ok) {
+					const blob = await downloadResponse.blob()
+					const url = URL.createObjectURL(blob)
+					const link = document.createElement('a')
+					link.href = url
+					link.download = data.backup.name
+					document.body.appendChild(link)
+					link.click()
+					document.body.removeChild(link)
+					URL.revokeObjectURL(url)
+
+					toast.success('Yedek dosyası indirildi')
+				}
+			} else {
+				console.error('Backup creation error:', data.error)
+				toast.error(data.error || 'Yedek oluşturulurken bir hata oluştu')
 			}
-
-			const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
-			const url = URL.createObjectURL(blob)
-			const link = document.createElement('a')
-			link.href = url
-			link.download = `backup-full-${new Date().toISOString().split('T')[0]}.json`
-			document.body.appendChild(link)
-			link.click()
-			document.body.removeChild(link)
-			URL.revokeObjectURL(url)
-
-			toast.success('Tam yedek başarıyla oluşturuldu ve indirildi')
 		} catch (error) {
 			console.error('Yedek oluşturma hatası:', error)
 			toast.error('Yedek oluşturulurken bir hata oluştu')
@@ -43,28 +53,65 @@ export default function BackupQuickActions() {
 	}
 
 	const handleRestoreFromBackup = () => {
-		setIsRestoring(true)
-		try {
-			// Dosya seçici aç
-			const input = document.createElement('input')
-			input.type = 'file'
-			input.accept = '.json,.sql'
-			input.onchange = async (e) => {
-				const file = (e.target as HTMLInputElement).files?.[0]
-				if (file) {
-					// Simüle edilen geri yükleme işlemi
-					await new Promise(resolve => setTimeout(resolve, 2000))
-					toast.success(`${file.name} dosyasından geri yükleme işlemi başlatıldı`)
-					toast.info('Bu işlem birkaç dakika sürebilir. Lütfen bekleyin...')
+		// Dosya seçici aç
+		const input = document.createElement('input')
+		input.type = 'file'
+		input.accept = '.json'
+		input.onchange = async (e) => {
+			const file = (e.target as HTMLInputElement).files?.[0]
+			if (!file) {
+				return
+			}
+
+			// Confirm restore
+			const confirmRestore = confirm(
+				`"${file.name}" dosyasından geri yükleme yapmak istediğinizden emin misiniz?\n\nBu işlem mevcut verilere ekleme yapacaktır. İşlem geri alınamaz!`
+			)
+
+			if (!confirmRestore) {
+				return
+			}
+
+			setIsRestoring(true)
+
+			try {
+				toast.info('Geri yükleme işlemi başlatılıyor...')
+
+				// Create form data
+				const formData = new FormData()
+				formData.append('file', file)
+
+				// Call restore API
+				const response = await fetch('/api/admin/backups/restore', {
+					method: 'POST',
+					body: formData
+				})
+
+				const data = await response.json()
+
+				if (response.ok) {
+					toast.success(`Geri yükleme tamamlandı!`, {
+						description: `${data.summary.successful}/${data.summary.total_tables} tablo başarıyla geri yüklendi`
+					})
+
+					if (data.results.failed.length > 0) {
+						toast.warning(`${data.results.failed.length} tablo geri yüklenemedi`, {
+							description: 'Detaylar için konsola bakın'
+						})
+						console.log('Failed tables:', data.results.failed)
+					}
+				} else {
+					console.error('Restore error:', data.error)
+					toast.error(data.error || 'Geri yükleme işlemi başarısız oldu')
 				}
+			} catch (error) {
+				console.error('Geri yükleme hatası:', error)
+				toast.error('Geri yükleme işlemi başarısız oldu')
+			} finally {
 				setIsRestoring(false)
 			}
-			input.click()
-		} catch (error) {
-			console.error('Geri yükleme hatası:', error)
-			toast.error('Geri yükleme işlemi başarısız oldu')
-			setIsRestoring(false)
 		}
+		input.click()
 	}
 
 	const handleCheckDatabaseStatus = async () => {

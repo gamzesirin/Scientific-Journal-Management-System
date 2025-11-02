@@ -21,6 +21,8 @@ export interface Article {
 	published_date?: string
 	article_type?: ArticleType
 	citation_count?: number
+	// Co-author flag
+	isCoauthor?: boolean
 	users?: {
 		name: string
 		email: string

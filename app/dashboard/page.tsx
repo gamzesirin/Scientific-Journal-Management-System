@@ -49,12 +49,39 @@ export default async function DashboardPage() {
 
 	switch (role) {
 		case 'author':
-			// Yazarın makalelerini al
+			// Yazarın ana yazar olduğu makaleleri al
 			const { data: authorArticles } = await supabase
 				.from('articles')
 				.select('*')
 				.eq('author_id', user.id)
 				.order('created_at', { ascending: false })
+
+			// Ortak yazar olduğu makaleleri al
+			const { data: coauthoredArticles } = await supabase
+				.from('article_coauthors')
+				.select('article_id')
+				.eq('user_id', user.id)
+
+			// Ortak yazar olduğu makale ID'lerini topla
+			const coauthoredArticleIds = coauthoredArticles?.map((ca) => ca.article_id) || []
+
+			// Ortak yazar olduğu makalelerin detaylarını al
+			let coauthoredArticlesDetails = []
+			if (coauthoredArticleIds.length > 0) {
+				const { data: coauthoredDetails } = await supabase
+					.from('articles')
+					.select('*')
+					.in('id', coauthoredArticleIds)
+					.order('created_at', { ascending: false })
+
+				coauthoredArticlesDetails = coauthoredDetails || []
+			}
+
+			// Tüm makaleleri birleştir (ana yazar + ortak yazar)
+			const allUserArticles = [...(authorArticles || []), ...coauthoredArticlesDetails]
+
+			// Duplicate'leri kaldır (eğer hem ana yazar hem ortak yazar ise)
+			const uniqueArticles = Array.from(new Map(allUserArticles.map((article) => [article.id, article])).values())
 
 			// Get all decisions to correct article status
 			const { data: allDecisionsDebug } = await supabase.from('decisions').select('*')
@@ -71,24 +98,30 @@ export default async function DashboardPage() {
 			// Create a map of article_id -> decision_type
 			const authorDecisionsByArticle = new Map(authorDecisions?.map((d) => [d.article_id, d.decision_type]) || [])
 
-			// Correct article statuses based on decisions
-			dashboardData.articles = (authorArticles || []).map((paper) => {
-				let correctedStatus = paper.status
-				const decision = authorDecisionsByArticle.get(paper.id)
+			// Correct article statuses based on decisions and add co-author flag
+			dashboardData.articles = uniqueArticles
+				.map((paper) => {
+					let correctedStatus = paper.status
+					const decision = authorDecisionsByArticle.get(paper.id)
 
-				if (decision === 'revision' && paper.status === 'under_review') {
-					correctedStatus = 'revision_requested'
-				} else if (decision === 'accept' && paper.status !== 'accepted' && paper.status !== 'published') {
-					correctedStatus = 'accepted'
-				} else if (decision === 'reject' && paper.status !== 'rejected') {
-					correctedStatus = 'rejected'
-				}
+					if (decision === 'revision' && paper.status === 'under_review') {
+						correctedStatus = 'revision_requested'
+					} else if (decision === 'accept' && paper.status !== 'accepted' && paper.status !== 'published') {
+						correctedStatus = 'accepted'
+					} else if (decision === 'reject' && paper.status !== 'rejected') {
+						correctedStatus = 'rejected'
+					}
 
-				return {
-					...paper,
-					status: correctedStatus
-				}
-			})
+					// Ana yazar mı yoksa ortak yazar mı olduğunu belirle
+					const isCoauthor = paper.author_id !== user.id
+
+					return {
+						...paper,
+						status: correctedStatus,
+						isCoauthor
+					}
+				})
+				.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 			break
 
 		case 'editor':

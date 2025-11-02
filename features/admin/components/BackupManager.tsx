@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -16,50 +16,113 @@ interface Backup {
 }
 
 export default function BackupManager() {
-	const [backups, setBackups] = useState<Backup[]>([
-		{
-			id: '1',
-			name: 'backup_2025_01_15_10_30.sql',
-			size: '24.5 MB',
-			created_at: '2025-01-15T10:30:00',
-			status: 'completed'
-		},
-		{
-			id: '2',
-			name: 'backup_2025_01_10_08_15.sql',
-			size: '22.1 MB',
-			created_at: '2025-01-10T08:15:00',
-			status: 'completed'
-		}
-	])
+	const [backups, setBackups] = useState<Backup[]>([])
 	const [loading, setLoading] = useState(false)
+	const [fetching, setFetching] = useState(true)
+
+	// Fetch backups on mount
+	useEffect(() => {
+		fetchBackups()
+	}, [])
+
+	const fetchBackups = async () => {
+		try {
+			setFetching(true)
+			const response = await fetch('/api/admin/backups')
+			const data = await response.json()
+
+			if (response.ok) {
+				setBackups(data.backups || [])
+			} else {
+				console.error('Failed to fetch backups:', data.error)
+				toast.error('Yedekler yüklenirken bir hata oluştu')
+			}
+		} catch (error) {
+			console.error('Fetch backups error:', error)
+			toast.error('Yedekler yüklenirken bir hata oluştu')
+		} finally {
+			setFetching(false)
+		}
+	}
 
 	const handleCreateBackup = async () => {
 		setLoading(true)
-		// TODO: API çağrısı ile yedek oluştur
-		setTimeout(() => {
-			const newBackup: Backup = {
-				id: Date.now().toString(),
-				name: `backup_${new Date().toISOString().split('T')[0]}_${new Date().toTimeString().split(' ')[0].replace(/:/g, '_')}.sql`,
-				size: '25.0 MB',
-				created_at: new Date().toISOString(),
-				status: 'completed'
+		try {
+			const response = await fetch('/api/admin/backups', {
+				method: 'POST'
+			})
+
+			const data = await response.json()
+
+			if (response.ok) {
+				toast.success('Yedek başarıyla oluşturuldu')
+				// Refresh backup list
+				await fetchBackups()
+			} else {
+				console.error('Create backup error:', data.error)
+				toast.error(data.error || 'Yedek oluşturulurken bir hata oluştu')
 			}
-			setBackups([newBackup, ...backups])
+		} catch (error) {
+			console.error('Create backup error:', error)
+			toast.error('Yedek oluşturulurken bir hata oluştu')
+		} finally {
 			setLoading(false)
-			toast.success('Yedek başarıyla oluşturuldu')
-		}, 2000)
+		}
 	}
 
-	const handleDownload = (backup: Backup) => {
-		// TODO: Yedek dosyasını indir
-		toast.success(`${backup.name} indiriliyor...`)
+	const handleDownload = async (backup: Backup) => {
+		try {
+			toast.info(`${backup.name} indiriliyor...`)
+
+			const response = await fetch(`/api/admin/backups/${backup.name}`)
+
+			if (response.ok) {
+				const blob = await response.blob()
+				const url = URL.createObjectURL(blob)
+				const link = document.createElement('a')
+				link.href = url
+				link.download = backup.name
+				document.body.appendChild(link)
+				link.click()
+				document.body.removeChild(link)
+				URL.revokeObjectURL(url)
+
+				toast.success('Yedek başarıyla indirildi')
+			} else {
+				const data = await response.json()
+				console.error('Download backup error:', data.error)
+				toast.error(data.error || 'Yedek indirilirken bir hata oluştu')
+			}
+		} catch (error) {
+			console.error('Download backup error:', error)
+			toast.error('Yedek indirilirken bir hata oluştu')
+		}
 	}
 
-	const handleDelete = (backupId: string) => {
-		// TODO: API çağrısı ile yedek sil
-		setBackups(backups.filter(b => b.id !== backupId))
-		toast.success('Yedek başarıyla silindi')
+	const handleDelete = async (backup: Backup) => {
+		if (!confirm(`"${backup.name}" yedek dosyasını silmek istediğinizden emin misiniz?`)) {
+			return
+		}
+
+		try {
+			const response = await fetch(`/api/admin/backups/${backup.name}`, {
+				method: 'DELETE'
+			})
+
+			const data = await response.json()
+
+			if (response.ok) {
+				toast.success('Yedek başarıyla silindi')
+				// Remove from local state
+				setBackups(backups.filter((b) => b.id !== backup.id))
+			} else {
+				console.error('Delete backup error:', data.error)
+				toast.error(data.error || 'Yedek silinirken bir hata oluştu')
+			}
+		} catch (error) {
+			console.error('Delete backup error:', error)
+			toast.error('Yedek silinirken bir hata oluştu')
+		}
 	}
 
 	const getStatusBadge = (status: string) => {
@@ -73,6 +136,15 @@ export default function BackupManager() {
 			default:
 				return <Badge variant="outline">{status}</Badge>
 		}
+	}
+
+	if (fetching) {
+		return (
+			<div className="flex items-center justify-center py-8">
+				<RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+				<span className="ml-2 text-gray-500">Yedekler yükleniyor...</span>
+			</div>
+		)
 	}
 
 	return (
@@ -124,7 +196,7 @@ export default function BackupManager() {
 											<Button
 												variant="destructive"
 												size="sm"
-												onClick={() => handleDelete(backup.id)}
+												onClick={() => handleDelete(backup)}
 											>
 												<Trash2 className="h-4 w-4" />
 											</Button>
