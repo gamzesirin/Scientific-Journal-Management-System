@@ -26,6 +26,7 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 	const [submitting, setSubmitting] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [existingEvaluation, setExistingEvaluation] = useState<EditorDeskEvaluation | null>(null)
+	const [allowNewDecision, setAllowNewDecision] = useState(false)
 
 	// Form states
 	const [decision, setDecision] = useState<EditorDeskEvaluation['decision']>('pending')
@@ -85,7 +86,8 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 					notes: notes.trim() || null,
 					scope_fit_score: scopeFitScore,
 					originality_score: originalityScore,
-					methodology_quality_score: methodologyScore
+					methodology_quality_score: methodologyScore,
+					is_revision_decision: allowNewDecision
 				})
 			})
 
@@ -103,6 +105,9 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 			} else {
 				toast.success('Desk evaluation taslak olarak kaydedildi')
 			}
+
+			// Reset allow new decision after successful submit
+			setAllowNewDecision(false)
 
 			// Refresh page
 			router.refresh()
@@ -130,7 +135,7 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 	}
 
 	// If already submitted and decided
-	const isSubmitted = existingEvaluation?.submitted_at && decision !== 'pending'
+	const isSubmitted = existingEvaluation?.submitted_at && decision !== 'pending' && !allowNewDecision
 
 	return (
 		<Card className={isSubmitted ? 'border-green-500' : ''}>
@@ -145,11 +150,27 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 							Makaleyi hızlı bir şekilde değerlendirerek hakem atamasına uygun olup olmadığına karar verin
 						</CardDescription>
 					</div>
-					{isSubmitted && (
-						<Badge className="bg-green-500">
-							<CheckCircle2 className="h-3 w-3 mr-1" />
-							Tamamlandı
-						</Badge>
+					{existingEvaluation?.submitted_at && decision !== 'pending' && (
+						<div className="flex gap-2">
+							<Badge className="bg-green-500">
+								<CheckCircle2 className="h-3 w-3 mr-1" />
+								Tamamlandı
+							</Badge>
+							{!allowNewDecision && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => {
+										setAllowNewDecision(true)
+										setDecision('pending')
+										setRejectionReason('')
+										setNotes('')
+									}}
+								>
+									Yeni Karar Ver
+								</Button>
+							)}
+						</div>
 					)}
 				</div>
 			</CardHeader>
@@ -311,7 +332,7 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 					)}
 
 					{/* Submit Buttons */}
-					{!isSubmitted && (
+					{(!isSubmitted || allowNewDecision) && (
 						<div className="flex gap-3">
 							<Button
 								type="submit"
@@ -328,10 +349,30 @@ export default function EditorDeskEvaluationForm({ articleId, articleTitle, edit
 									? 'Reddet ve Bildir'
 									: 'Kararınızı Seçin'}
 							</Button>
+							{allowNewDecision && (
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => {
+										setAllowNewDecision(false)
+										// Restore original values
+										if (existingEvaluation) {
+											setDecision(existingEvaluation.decision)
+											setRejectionReason(existingEvaluation.rejection_reason || '')
+											setNotes(existingEvaluation.notes || '')
+											setScopeFitScore(existingEvaluation.scope_fit_score)
+											setOriginalityScore(existingEvaluation.originality_score)
+											setMethodologyScore(existingEvaluation.methodology_quality_score)
+										}
+									}}
+								>
+									İptal
+								</Button>
+							)}
 						</div>
 					)}
 
-					{isSubmitted && (
+					{isSubmitted && !allowNewDecision && (
 						<Alert className="border-green-500 bg-green-50">
 							<CheckCircle2 className="h-4 w-4 text-green-600" />
 							<AlertDescription className="text-green-600">

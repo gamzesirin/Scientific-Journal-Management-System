@@ -53,21 +53,41 @@ export default async function PublishedArticlePage({ params }: PageProps) {
 	const supabase = await createServerSupabaseClient()
 	const { id } = await params
 
-	// Fetch published article with author and coauthors
-	const { data: article, error } = await supabase
-		.from('articles')
-		.select(
-			`
-      *,
-      users!author_id(name, email, affiliation)
-    `
-		)
+	// Fetch published article from public_articles view
+	const { data: articleData, error } = await supabase
+		.from('public_articles')
+		.select('*')
 		.eq('id', id)
-		.eq('status', 'published')
 		.single()
 
-	if (error || !article) {
+	if (error || !articleData) {
 		notFound()
+	}
+
+	// Map view data to ArticleWithAuthor format
+	const article: ArticleWithAuthor = {
+		id: articleData.id,
+		title: articleData.title,
+		abstract: articleData.abstract,
+		keywords: articleData.keywords,
+		doi: articleData.doi,
+		volume: articleData.volume,
+		issue: articleData.issue,
+		start_page: articleData.start_page,
+		end_page: articleData.end_page,
+		published_date: articleData.published_date,
+		article_type: articleData.article_type,
+		citation_count: articleData.citation_count,
+		file_url: articleData.file_url,
+		author_id: articleData.author_id || '',
+		status: 'published' as const,
+		created_at: articleData.created_at,
+		updated_at: articleData.updated_at,
+		users: {
+			name: articleData.author_name,
+			email: articleData.author_email || '',
+			affiliation: articleData.author_affiliation
+		}
 	}
 
 	// Fetch coauthors
@@ -77,7 +97,7 @@ export default async function PublishedArticlePage({ params }: PageProps) {
 		.eq('article_id', id)
 		.order('order_index')
 
-	const typedArticle = article as ArticleWithAuthor
+	const typedArticle = article
 
 	const getArticleTypeLabel = (type: string = 'research') => {
 		const labels: Record<string, string> = {

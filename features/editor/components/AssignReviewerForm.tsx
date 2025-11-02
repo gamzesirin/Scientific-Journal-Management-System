@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,10 +13,27 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { format, addDays } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import { CalendarIcon, User, Mail, Award, Clock } from 'lucide-react'
+import { CalendarIcon, User, Mail, Award, Clock, Sparkles, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Reviewer, AssignmentFormData } from '../types/editor.types'
 import { toast } from '@/lib/toast'
+
+interface ReviewerMatch {
+	reviewer_id: string
+	reviewer_name: string
+	reviewer_email: string
+	reviewer_affiliation?: string
+	expertise_areas?: string[]
+	overall_match_score: number
+	topic_similarity_score: number
+	keyword_overlap_score: number
+	methodology_match_score: number
+	domain_expertise_score: number
+	matching_keywords: string[]
+	matching_topics: string[]
+	recommendation_level: 'excellent' | 'good' | 'moderate' | 'low'
+	confidence_score: number
+}
 
 interface AssignReviewerFormProps {
 	paperId: string
@@ -33,13 +50,55 @@ export default function AssignReviewerForm({
 }: AssignReviewerFormProps) {
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
+	const [loadingMatches, setLoadingMatches] = useState(false)
 	const [selectedReviewers, setSelectedReviewers] = useState<string[]>([])
 	const [deadline, setDeadline] = useState<Date | undefined>(addDays(new Date(), 14))
 	const [message, setMessage] = useState('')
+	const [aiMatches, setAiMatches] = useState<ReviewerMatch[]>([])
+	const [showAiSuggestions, setShowAiSuggestions] = useState(true)
 
 	// Filter out already assigned reviewers
 	const assignedReviewerIds = existingAssignments.map((a) => a.reviewer_id)
 	const filteredReviewers = availableReviewers.filter((r) => !assignedReviewerIds.includes(r.id))
+
+	// Fetch AI matching scores on component mount
+	useEffect(() => {
+		const fetchMatches = async () => {
+			setLoadingMatches(true)
+			try {
+				const response = await fetch(`/api/editor/reviewer-matches/${paperId}`)
+				if (response.ok) {
+					const data = await response.json()
+					setAiMatches(data.matches || [])
+				} else {
+					console.warn('Could not fetch AI matches:', await response.text())
+				}
+			} catch (error) {
+				console.error('Error fetching AI matches:', error)
+			} finally {
+				setLoadingMatches(false)
+			}
+		}
+
+		fetchMatches()
+	}, [paperId])
+
+	// Merge reviewer data with AI match scores
+	const reviewersWithScores = filteredReviewers.map((reviewer) => {
+		const match = aiMatches.find((m) => m.reviewer_id === reviewer.id)
+		return {
+			...reviewer,
+			aiMatch: match
+		}
+	}).sort((a, b) => {
+		// Sort by AI score if available, otherwise alphabetically
+		if (a.aiMatch && b.aiMatch) {
+			return b.aiMatch.overall_match_score - a.aiMatch.overall_match_score
+		}
+		if (a.aiMatch) return -1
+		if (b.aiMatch) return 1
+		return a.name.localeCompare(b.name)
+	})
 
 	const handleAddReviewer = (reviewerId: string) => {
 		if (!selectedReviewers.includes(reviewerId)) {
@@ -149,73 +208,266 @@ export default function AssignReviewerForm({
 			{/* Reviewer Selection */}
 			<Card>
 				<CardHeader>
-					<CardTitle>Hakem Seçimi</CardTitle>
-					<CardDescription>Makaleyi değerlendirecek hakemleri seçin</CardDescription>
+					<div className="flex items-center justify-between">
+						<div>
+							<CardTitle className="flex items-center gap-2">
+								Hakem Seçimi
+								{aiMatches.length > 0 && (
+									<Badge variant="secondary" className="gap-1">
+										<Sparkles className="h-3 w-3" />
+										AI Önerileri Aktif
+									</Badge>
+								)}
+							</CardTitle>
+							<CardDescription>
+								{aiMatches.length > 0
+									? 'AI tarafından önerilen hakemler eşleşme skoruna göre sıralanmıştır'
+									: 'Makaleyi değerlendirecek hakemleri seçin'
+								}
+							</CardDescription>
+						</div>
+						{aiMatches.length > 0 && (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setShowAiSuggestions(!showAiSuggestions)}
+							>
+								{showAiSuggestions ? 'Detayları Gizle' : 'Detayları Göster'}
+							</Button>
+						)}
+					</div>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{/* Available Reviewers */}
-					<div>
-						<Label>Uygun Hakemler</Label>
-						<div className="mt-2 space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-							{filteredReviewers.length === 0 ? (
-								<p className="text-gray-500 text-center py-4">Uygun hakem bulunmamaktadır</p>
-							) : (
-								filteredReviewers.map((reviewer) => (
-									<div
-										key={reviewer.id}
-										className={cn(
-											'flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50',
-											selectedReviewers.includes(reviewer.id) && 'bg-blue-50 border-blue-300'
-										)}
-										onClick={() => {
-											if (selectedReviewers.includes(reviewer.id)) {
-												handleRemoveReviewer(reviewer.id)
-											} else {
-												handleAddReviewer(reviewer.id)
-											}
-										}}
-									>
-										<div className="flex-1">
-											<div className="flex items-center gap-2">
-												<User className="h-4 w-4" />
-												<span className="font-medium">{reviewer.name}</span>
-											</div>
-											<div className="flex items-center gap-2 mt-1">
-												<Mail className="h-3 w-3" />
-												<span className="text-sm text-gray-600">{reviewer.email}</span>
-											</div>
-											{reviewer.expertise_areas && reviewer.expertise_areas.length > 0 && (
-												<div className="flex items-center gap-2 mt-2">
-													<Award className="h-3 w-3" />
-													<div className="flex flex-wrap gap-1">
-														{reviewer.expertise_areas.map((area, index) => (
-															<Badge key={index} variant="outline" className="text-xs">
-																{area}
-															</Badge>
-														))}
-													</div>
-												</div>
-											)}
-										</div>
-										<Button
-											size="sm"
-											variant={selectedReviewers.includes(reviewer.id) ? 'default' : 'outline'}
-											onClick={(e) => {
-												e.stopPropagation()
-												if (selectedReviewers.includes(reviewer.id)) {
-													handleRemoveReviewer(reviewer.id)
-												} else {
-													handleAddReviewer(reviewer.id)
-												}
-											}}
-										>
-											{selectedReviewers.includes(reviewer.id) ? 'Seçildi' : 'Seç'}
-										</Button>
-									</div>
-								))
-							)}
+					{loadingMatches && (
+						<div className="flex items-center justify-center py-8">
+							<div className="flex items-center gap-2 text-gray-600">
+								<Sparkles className="h-4 w-4 animate-pulse" />
+								<span>AI hakemlerinizi analiz ediyor...</span>
+							</div>
 						</div>
-					</div>
+					)}
+
+					{/* Available Reviewers */}
+					{!loadingMatches && (
+						<div>
+							<Label>
+								Uygun Hakemler
+								{aiMatches.length > 0 && (
+									<span className="text-sm font-normal text-gray-500 ml-2">
+										(Eşleşme skoruna göre sıralı)
+									</span>
+								)}
+							</Label>
+							<div className="mt-2 space-y-2 max-h-96 overflow-y-auto border rounded-lg p-3">
+								{reviewersWithScores.length === 0 ? (
+									<p className="text-gray-500 text-center py-4">Uygun hakem bulunmamaktadır</p>
+								) : (
+									reviewersWithScores.map((reviewer) => {
+										const match = reviewer.aiMatch
+										const hasAiScore = !!match
+
+										return (
+											<div
+												key={reviewer.id}
+												className={cn(
+													'p-3 border rounded-lg cursor-pointer transition-all',
+													selectedReviewers.includes(reviewer.id)
+														? 'bg-blue-50 border-blue-300'
+														: hasAiScore
+															? match.recommendation_level === 'excellent'
+																? 'hover:bg-green-50 border-green-200'
+																: match.recommendation_level === 'good'
+																? 'hover:bg-blue-50 border-blue-200'
+																: 'hover:bg-gray-50'
+															: 'hover:bg-gray-50'
+												)}
+												onClick={() => {
+													if (selectedReviewers.includes(reviewer.id)) {
+														handleRemoveReviewer(reviewer.id)
+													} else {
+														handleAddReviewer(reviewer.id)
+													}
+												}}
+											>
+												<div className="flex items-start justify-between gap-4">
+													<div className="flex-1 min-w-0">
+														{/* Reviewer Name and Score Badge */}
+														<div className="flex items-center gap-2 flex-wrap">
+															<div className="flex items-center gap-2">
+																<User className="h-4 w-4 flex-shrink-0" />
+																<span className="font-medium">{reviewer.name}</span>
+															</div>
+
+															{hasAiScore && (
+																<>
+																	{/* Match Score Badge */}
+																	<Badge
+																		variant={
+																			match.recommendation_level === 'excellent'
+																				? 'default'
+																				: match.recommendation_level === 'good'
+																				? 'secondary'
+																				: 'outline'
+																		}
+																		className={cn(
+																			'gap-1',
+																			match.recommendation_level === 'excellent' && 'bg-green-600',
+																			match.recommendation_level === 'good' && 'bg-blue-600 text-white'
+																		)}
+																	>
+																		<TrendingUp className="h-3 w-3" />
+																		{Math.round(match.overall_match_score)}% eşleşme
+																	</Badge>
+
+																	{/* Recommendation Level Badge */}
+																	{match.recommendation_level === 'excellent' && (
+																		<Badge variant="outline" className="gap-1 border-green-600 text-green-700">
+																			<CheckCircle2 className="h-3 w-3" />
+																			Mükemmel Eşleşme
+																		</Badge>
+																	)}
+																	{match.recommendation_level === 'good' && (
+																		<Badge variant="outline" className="gap-1 border-blue-600 text-blue-700">
+																			<CheckCircle2 className="h-3 w-3" />
+																			İyi Eşleşme
+																		</Badge>
+																	)}
+																	{match.recommendation_level === 'moderate' && (
+																		<Badge variant="outline" className="text-yellow-700">
+																			Orta Eşleşme
+																		</Badge>
+																	)}
+																</>
+															)}
+														</div>
+
+														{/* Email */}
+														<div className="flex items-center gap-2 mt-1">
+															<Mail className="h-3 w-3" />
+															<span className="text-sm text-gray-600 truncate">{reviewer.email}</span>
+														</div>
+
+														{/* Expertise Areas */}
+														{reviewer.expertise_areas && reviewer.expertise_areas.length > 0 && (
+															<div className="flex items-start gap-2 mt-2">
+																<Award className="h-3 w-3 mt-1 flex-shrink-0" />
+																<div className="flex flex-wrap gap-1">
+																	{reviewer.expertise_areas.map((area, index) => (
+																		<Badge key={index} variant="outline" className="text-xs">
+																			{area}
+																		</Badge>
+																	))}
+																</div>
+															</div>
+														)}
+
+														{/* AI Match Details */}
+														{hasAiScore && showAiSuggestions && (
+															<div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200">
+																<div className="grid grid-cols-2 gap-2 text-xs">
+																	<div className="flex items-center gap-1">
+																		<div
+																			className="h-2 w-2 rounded-full"
+																			style={{
+																				backgroundColor: match.topic_similarity_score > 70 ? '#10b981' :
+																								match.topic_similarity_score > 40 ? '#f59e0b' : '#ef4444'
+																			}}
+																		/>
+																		<span className="text-gray-600">Konu Benzerliği:</span>
+																		<span className="ml-1 font-medium">{Math.round(match.topic_similarity_score)}%</span>
+																	</div>
+																	<div className="flex items-center gap-1">
+																		<div
+																			className="h-2 w-2 rounded-full"
+																			style={{
+																				backgroundColor: match.keyword_overlap_score > 70 ? '#10b981' :
+																								match.keyword_overlap_score > 40 ? '#f59e0b' : '#ef4444'
+																			}}
+																		/>
+																		<span className="text-gray-600">Anahtar Kelime:</span>
+																		<span className="ml-1 font-medium">{Math.round(match.keyword_overlap_score)}%</span>
+																	</div>
+																	<div className="flex items-center gap-1">
+																		<div
+																			className="h-2 w-2 rounded-full"
+																			style={{
+																				backgroundColor: match.methodology_match_score > 70 ? '#10b981' :
+																								match.methodology_match_score > 40 ? '#f59e0b' : '#ef4444'
+																			}}
+																		/>
+																		<span className="text-gray-600">Metodoloji:</span>
+																		<span className="ml-1 font-medium">{Math.round(match.methodology_match_score)}%</span>
+																	</div>
+																	<div className="flex items-center gap-1">
+																		<div
+																			className="h-2 w-2 rounded-full"
+																			style={{
+																				backgroundColor: match.domain_expertise_score > 70 ? '#10b981' :
+																								match.domain_expertise_score > 40 ? '#f59e0b' : '#ef4444'
+																			}}
+																		/>
+																		<span className="text-gray-600">Alan Uzmanlığı:</span>
+																		<span className="ml-1 font-medium">{Math.round(match.domain_expertise_score)}%</span>
+																	</div>
+																</div>
+
+																{/* Match confidence indicator */}
+																{match.confidence_score && (
+																	<div className="mt-2 flex items-center gap-2">
+																		<span className="text-xs text-gray-600">Güvenilirlik:</span>
+																		<div className="flex-1 bg-gray-200 rounded-full h-2">
+																			<div
+																				className="h-2 rounded-full transition-all"
+																				style={{
+																					width: `${match.confidence_score}%`,
+																					backgroundColor: match.confidence_score > 70 ? '#10b981' :
+																									match.confidence_score > 40 ? '#f59e0b' : '#ef4444'
+																				}}
+																			/>
+																		</div>
+																		<span className="text-xs font-medium">{Math.round(match.confidence_score)}%</span>
+																	</div>
+																)}
+
+																{match.matching_keywords && match.matching_keywords.length > 0 && (
+																	<div className="mt-2">
+																		<span className="text-xs text-gray-600">Eşleşen Terimler:</span>
+																		<div className="flex flex-wrap gap-1 mt-1">
+																			{match.matching_keywords.slice(0, 5).map((keyword, idx) => (
+																				<Badge key={idx} variant="secondary" className="text-xs">
+																					{keyword}
+																				</Badge>
+																			))}
+																		</div>
+																	</div>
+																)}
+															</div>
+														)}
+													</div>
+
+													{/* Select Button */}
+													<Button
+														size="sm"
+														variant={selectedReviewers.includes(reviewer.id) ? 'default' : 'outline'}
+														onClick={(e) => {
+															e.stopPropagation()
+															if (selectedReviewers.includes(reviewer.id)) {
+																handleRemoveReviewer(reviewer.id)
+															} else {
+																handleAddReviewer(reviewer.id)
+															}
+														}}
+													>
+														{selectedReviewers.includes(reviewer.id) ? 'Seçildi' : 'Seç'}
+													</Button>
+												</div>
+											</div>
+										)
+									})
+								)}
+							</div>
+						</div>
+					)}
 
 					{/* Selected Reviewers */}
 					{selectedReviewers.length > 0 && (

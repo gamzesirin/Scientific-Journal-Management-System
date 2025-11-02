@@ -79,13 +79,20 @@ export default async function AssignReviewerPage({ params }: PageProps) {
 	const assignedReviewerIds = existingAssignments?.map((a) => a.reviewer_id) || []
 	const excludeIds = [...assignedReviewerIds, paperWithAuthor.author_id].filter(Boolean)
 
-	const { data: availableReviewers } = await supabase
+	// Build query for available reviewers
+	let reviewerQuery = supabase
 		.from('users')
 		.select('id, name, email, expertise_areas')
 		.eq('role', 'reviewer')
-		.not('id', 'in', `(${excludeIds.join(',')})`)
 		.eq('is_active', true)
 		.order('name')
+
+	// Only add exclusion if there are IDs to exclude
+	if (excludeIds.length > 0) {
+		reviewerQuery = reviewerQuery.not('id', 'in', `(${excludeIds.join(',')})`)
+	}
+
+	const { data: availableReviewers } = await reviewerQuery
 
 	// Transform to Reviewer type
 	const reviewers: Reviewer[] =

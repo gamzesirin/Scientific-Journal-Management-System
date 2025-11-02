@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import DecisionForm from '@/features/editor/components/DecisionForm'
+import DecisionSection from '@/features/editor/components/DecisionSection'
 
 interface PageProps {
 	params: Promise<{
@@ -228,59 +228,15 @@ export default async function EditorDecisionPage({ params }: PageProps) {
 							</CardContent>
 						</Card>
 
-						{/* Decision Form */}
-						{!existingDecision ? (
-							<DecisionForm
-								paperId={paperId}
-								paperTitle={paperWithAuthor.title}
-								suggestedDecision={suggestedDecision}
-								reviews={reviews || []}
-							/>
-						) : (
-							<Card>
-								<CardHeader>
-									<CardTitle>Mevcut Karar</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<div className="space-y-3">
-										<div className="flex items-center gap-2">
-											<span className="font-medium">Karar:</span>
-											<Badge
-												variant={
-													existingDecision.decision_type === 'accept'
-														? 'success'
-														: existingDecision.decision_type === 'reject'
-														? 'destructive'
-														: 'default'
-												}
-												className="text-base"
-											>
-												{existingDecision.decision_type === 'accept' ? (
-													<>
-														<CheckCircle className="h-4 w-4 mr-1" /> Kabul
-													</>
-												) : existingDecision.decision_type === 'reject' ? (
-													<>
-														<XCircle className="h-4 w-4 mr-1" /> Red
-													</>
-												) : (
-													'Revizyon'
-												)}
-											</Badge>
-										</div>
-										<div>
-											<p className="font-medium mb-1">Gerekçe:</p>
-											<p className="text-gray-600">{existingDecision.decision_reason}</p>
-										</div>
-										{existingDecision.finalized_at && (
-											<p className="text-sm text-gray-500">
-												Karar Tarihi: {new Date(existingDecision.finalized_at).toLocaleDateString('tr-TR')}
-											</p>
-										)}
-									</div>
-								</CardContent>
-							</Card>
-						)}
+						{/* Decision Section - handles both new and existing decisions */}
+						<DecisionSection
+							paperId={paperId}
+							paperTitle={paperWithAuthor.title}
+							suggestedDecision={suggestedDecision}
+							reviews={reviews || []}
+							existingDecision={existingDecision}
+							paperStatus={paperWithAuthor.status}
+						/>
 					</div>
 
 					{/* Sidebar */}

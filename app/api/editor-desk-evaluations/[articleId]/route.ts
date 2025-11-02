@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 		// Parse request body
 		const body = await request.json()
-		const { decision, rejection_reason, notes, scope_fit_score, originality_score, methodology_quality_score } = body
+		const { decision, rejection_reason, notes, scope_fit_score, originality_score, methodology_quality_score, is_revision_decision } = body
 
 		if (!decision) {
 			return NextResponse.json({ error: 'Karar gerekli' }, { status: 400 })
@@ -99,8 +99,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 		if (existingDeskEval) {
 			// UPDATE existing
-			// Only allow update if it's still pending
-			if (existingDeskEval.decision !== 'pending') {
+			// Only allow update if it's still pending OR if this is a revision decision (article was revised)
+			if (existingDeskEval.decision !== 'pending' && !is_revision_decision) {
 				return NextResponse.json({ error: 'Gönderilmiş desk evaluation güncellenemez' }, { status: 400 })
 			}
 

@@ -100,6 +100,20 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 		}
 	}
 
+	// Get reviews first
+	const { data: reviews } = await supabase
+		.from('reviews')
+		.select(
+			`
+			*,
+			users!reviews_reviewer_id_fkey (
+				name,
+				email
+			)
+		`
+		)
+		.eq('article_id', paperId)
+
 	// Get assignments first without join
 	const { data: assignments, error: assignmentsError } = await supabase
 		.from('assignments')
@@ -119,27 +133,36 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 
 		const reviewersMap = new Map(reviewers?.map((r) => [r.id, r]) || [])
 
-		finalAssignments = assignments.map((assignment: any) => ({
-			...assignment,
-			users: reviewersMap.get(assignment.reviewer_id)
-		}))
+		// Map reviews by reviewer_id for easy lookup
+		const reviewsByReviewer = new Map()
+		if (reviews) {
+			reviews.forEach((review: any) => {
+				reviewsByReviewer.set(review.reviewer_id, review)
+			})
+		}
+
+		finalAssignments = assignments.map((assignment: any) => {
+			const review = reviewsByReviewer.get(assignment.reviewer_id)
+			let status = assignment.status
+
+			// Update assignment status based on review status
+			if (review) {
+				if (review.status === 'submitted') {
+					status = 'completed'
+				} else if (review.status === 'draft') {
+					status = 'in_progress'
+				}
+			}
+
+			return {
+				...assignment,
+				status,
+				users: reviewersMap.get(assignment.reviewer_id)
+			}
+		})
 
 		console.log('Final assignments with reviewer info:', finalAssignments)
 	}
-
-	// Get reviews
-	const { data: reviews } = await supabase
-		.from('reviews')
-		.select(
-			`
-			*,
-			users!reviews_reviewer_id_fkey (
-				name,
-				email
-			)
-		`
-		)
-		.eq('article_id', paperId)
 
 	// Get decision if exists
 	const { data: decision } = await supabase.from('decisions').select('*').eq('article_id', paperId).single()
@@ -149,6 +172,8 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 		.from('editor_desk_evaluations')
 		.select('*')
 		.eq('article_id', paperId)
+		.order('created_at', { ascending: false })
+		.limit(1)
 		.single()
 
 	// Check if there are new submitted reviews after the last decision
@@ -168,6 +193,12 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 	// 2. Article is resubmitted AND there are new submitted reviews
 	const canMakeDecision = !decision || (paperWithAuthor.status === 'resubmitted' && hasNewReviewsAfterDecision)
 
+	// Check if reviewer assignment is allowed
+	// For submitted articles: always allow
+	// For resubmitted articles: only if editor evaluation is done and positive
+	const canAssignReviewer = paperWithAuthor.status === 'submitted' ||
+		(paperWithAuthor.status === 'resubmitted' && deskEvaluation?.decision === 'accept')
+
 	// Dosya URL'sinden gerçek dosya adını çıkar
 	const getFileNameFromUrl = (url: string) => {
 		try {
@@ -185,6 +216,7 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 	const getStatusBadge = (status: string) => {
 		const statusConfig = {
 			submitted: { label: 'Gönderildi', variant: 'secondary' as const },
+			resubmitted: { label: 'Yeniden Gönderildi', variant: 'secondary' as const },
 			under_review: { label: 'İnceleniyor', variant: 'default' as const },
 			revision_requested: { label: 'Revizyon İstendi', variant: 'default' as const },
 			accepted: { label: 'Kabul Edildi', variant: 'success' as const },
@@ -228,7 +260,7 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 							{paperWithAuthor.file_url && (
 								<PDFDownloadSection fileUrl={paperWithAuthor.file_url} fileName={actualFileName} />
 							)}
-							{paperWithAuthor.status === 'submitted' && (
+							{canAssignReviewer && (
 								<Link href={`/editor/articles/${paperId}/assign`}>
 									<Button>
 										<Users className="h-4 w-4 mr-2" />
@@ -250,9 +282,43 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					{/* Main Content */}
 					<div className="lg:col-span-2 space-y-6">
-						{/* Desk Evaluation - Show for submitted or resubmitted articles */}
-						{(paperWithAuthor.status === 'submitted' || paperWithAuthor.status === 'resubmitted') && (
+						{/* Desk Evaluation - Show for submitted or resubmitted articles without evaluation */}
+						{(paperWithAuthor.status === 'submitted' ||
+						  (paperWithAuthor.status === 'resubmitted' && !deskEvaluation)) && (
 							<EditorDeskEvaluationForm articleId={paperId} articleTitle={paperWithAuthor.title} editorId={user.id} />
+						)}
+
+						{/* Show evaluation result for resubmitted articles */}
+						{paperWithAuthor.status === 'resubmitted' && deskEvaluation && (
+							<Card>
+								<CardHeader>
+									<CardTitle>Editör Ön Değerlendirmesi</CardTitle>
+									<CardDescription>
+										{deskEvaluation.decision === 'accept' ? (
+											<span className="text-green-600">✓ Makale hakem değerlendirmesine uygun bulunmuştur</span>
+										) : deskEvaluation.decision === 'reject' ? (
+											<span className="text-red-600">✗ Makale reddedilmiştir</span>
+										) : (
+											<span className="text-yellow-600">⏳ Değerlendirme bekliyor</span>
+										)}
+									</CardDescription>
+								</CardHeader>
+								{(deskEvaluation.notes || deskEvaluation.rejection_reason) && (
+									<CardContent>
+										<p className="text-sm text-gray-600">
+											{deskEvaluation.rejection_reason || deskEvaluation.notes}
+										</p>
+										{deskEvaluation.decision === 'accept' && !finalAssignments?.length && (
+											<Link href={`/editor/articles/${paperId}/assign`}>
+												<Button className="mt-4">
+													<Users className="h-4 w-4 mr-2" />
+													Hakem Ata
+												</Button>
+											</Link>
+										)}
+									</CardContent>
+								)}
+							</Card>
 						)}
 
 						{/* Paper Details */}
@@ -370,7 +436,7 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 									<div className="text-center py-8">
 										<Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
 										<p className="text-gray-500">Henüz hakem atanmamış</p>
-										{paperWithAuthor.status === 'submitted' && (
+										{canAssignReviewer && (
 											<Link href={`/editor/articles/${paperId}/assign`}>
 												<Button className="mt-4">
 													<Users className="h-4 w-4 mr-2" />
@@ -540,7 +606,7 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 								<CardTitle className="text-base">Hızlı İşlemler</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-2">
-								{paperWithAuthor.status === 'submitted' && (
+								{canAssignReviewer && finalAssignments && finalAssignments.length === 0 && (
 									<Link href={`/editor/articles/${paperId}/assign`} className="block">
 										<Button className="w-full" variant="outline">
 											<Users className="h-4 w-4 mr-2" />
@@ -548,7 +614,7 @@ export default async function EditorPaperDetailPage({ params }: PageProps) {
 										</Button>
 									</Link>
 								)}
-								{paperWithAuthor.status === 'under_review' && finalAssignments && finalAssignments.length > 0 && (
+								{canAssignReviewer && paperWithAuthor.status === 'under_review' && finalAssignments && finalAssignments.length > 0 && (
 									<Link href={`/editor/articles/${paperId}/assign`} className="block">
 										<Button className="w-full" variant="outline">
 											<Users className="h-4 w-4 mr-2" />

@@ -112,8 +112,11 @@ export default function DecisionForm({ paperId, paperTitle, suggestedDecision, r
 				.single()
 
 			if (existingDecision) {
-				// Update existing decision
-				const { error } = await supabase.from('decisions').update(decisionData).eq('id', existingDecision.id)
+				// Update existing decision (for revised articles)
+				const { error } = await supabase.from('decisions').update({
+					...decisionData,
+					updated_at: new Date().toISOString()
+				}).eq('id', existingDecision.id)
 
 				if (error) throw error
 			} else {

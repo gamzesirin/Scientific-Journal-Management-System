@@ -6,8 +6,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/lib/toast'
-import { Sparkles, FileText, CheckCircle2, XCircle, Loader2, User, Award, AlertCircle } from 'lucide-react'
+import { Sparkles, FileText, CheckCircle2, XCircle, Loader2, User, Award, AlertCircle, Edit, FileUp } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import CVFormSection from '@/features/reviewer/components/CVFormSection'
 
 interface ReviewerWithProfile {
 	id: string
@@ -29,6 +39,8 @@ export default function ReviewerAIManagement() {
 	const [reviewers, setReviewers] = useState<ReviewerWithProfile[]>([])
 	const [loading, setLoading] = useState(true)
 	const [processing, setProcessing] = useState<Record<string, boolean>>({})
+	const [selectedReviewer, setSelectedReviewer] = useState<ReviewerWithProfile | null>(null)
+	const [dialogOpen, setDialogOpen] = useState(false)
 
 	useEffect(() => {
 		fetchReviewers()
@@ -339,6 +351,18 @@ export default function ReviewerAIManagement() {
 								</div>
 
 								<div className="flex gap-2">
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => {
+											setSelectedReviewer(reviewer)
+											setDialogOpen(true)
+										}}
+									>
+										<Edit className="h-3 w-3 mr-1" />
+										{reviewer.profile ? 'Profili Düzenle' : 'Profil Oluştur'}
+									</Button>
+
 									{reviewer.cv_file_url && (
 										<>
 											<Button
@@ -363,7 +387,7 @@ export default function ReviewerAIManagement() {
 												) : (
 													<>
 														<Sparkles className="h-3 w-3 mr-1" />
-														{reviewer.profile ? 'Yeniden İşle' : 'AI İşle'}
+														PDF'den İşle
 													</>
 												)}
 											</Button>
@@ -375,6 +399,102 @@ export default function ReviewerAIManagement() {
 					</div>
 				</CardContent>
 			</Card>
+
+			{/* Profile Edit Dialog */}
+			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+				<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<User className="h-5 w-5" />
+							{selectedReviewer?.name} - Profil Yönetimi
+						</DialogTitle>
+						<DialogDescription>
+							Hakem profilini manuel olarak düzenleyin veya PDF CV yükleyerek otomatik analiz edin
+						</DialogDescription>
+					</DialogHeader>
+
+					<Tabs defaultValue="form" className="w-full">
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="form" className="flex items-center gap-2">
+								<Edit className="h-4 w-4" />
+								Manuel Form
+							</TabsTrigger>
+							<TabsTrigger value="upload" className="flex items-center gap-2">
+								<FileUp className="h-4 w-4" />
+								PDF Yükle
+							</TabsTrigger>
+						</TabsList>
+
+						<TabsContent value="form" className="mt-4">
+							{selectedReviewer && (
+								<CVFormSection
+									userId={selectedReviewer.id}
+								/>
+							)}
+						</TabsContent>
+
+						<TabsContent value="upload" className="mt-4">
+							<Card>
+								<CardHeader>
+									<CardTitle className="text-lg flex items-center gap-2">
+										<FileUp className="h-5 w-5" />
+										PDF CV Yükleme
+									</CardTitle>
+									<CardDescription>
+										PDF formatında CV yükleyerek otomatik AI analizi yapabilirsiniz
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									{selectedReviewer?.cv_file_url ? (
+										<div className="space-y-4">
+											<div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+												<p className="text-sm text-green-700">
+													CV yüklendi: {selectedReviewer.cv_file_url.split('/').pop()}
+												</p>
+											</div>
+											<div className="flex gap-2">
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => selectedReviewer.cv_file_url && window.open(selectedReviewer.cv_file_url, '_blank')}
+												>
+													<FileText className="h-4 w-4 mr-2" />
+													CV'yi Görüntüle
+												</Button>
+												<Button
+													size="sm"
+													onClick={() => selectedReviewer && processCV(selectedReviewer.id, selectedReviewer.name)}
+													disabled={selectedReviewer && processing[selectedReviewer.id]}
+												>
+													{selectedReviewer && processing[selectedReviewer.id] ? (
+														<>
+															<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+															İşleniyor...
+														</>
+													) : (
+														<>
+															<Sparkles className="h-4 w-4 mr-2" />
+															AI ile Analiz Et
+														</>
+													)}
+												</Button>
+											</div>
+										</div>
+									) : (
+										<div className="text-center py-8 text-gray-500">
+											<FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+											<p>Bu hakem için henüz CV yüklenmemiş</p>
+											<p className="text-sm mt-2">
+												Lütfen önce hakem panelinden CV yükleyin
+											</p>
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</TabsContent>
+					</Tabs>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }

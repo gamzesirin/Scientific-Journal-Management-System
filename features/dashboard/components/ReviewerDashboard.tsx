@@ -13,6 +13,7 @@ import AssignedPapersList from '@/features/reviewer/components/AssignedPapersLis
 import ReviewStatistics from '@/features/reviewer/components/ReviewStatistics'
 import ProfileUpdateForm from '@/features/auth/components/ProfileUpdateForm'
 import CVUploadSection from '@/features/reviewer/components/CVUploadSection'
+import CVFormSection from '@/features/reviewer/components/CVFormSection'
 import { Review } from '@/features/reviewer/types/review.types'
 
 interface UserData {
@@ -285,7 +286,40 @@ export default function ReviewerDashboard({ user, userData, assignedPapers, revi
 				</TabsContent>
 
 				<TabsContent value="cv">
-					<CVUploadSection userId={user.id} />
+					<Tabs defaultValue="form" className="w-full">
+						<TabsList className="grid w-full grid-cols-2 mb-6">
+							<TabsTrigger value="form">Profil Formu</TabsTrigger>
+							<TabsTrigger value="upload">PDF Yükle</TabsTrigger>
+						</TabsList>
+						<TabsContent value="form" className="space-y-4">
+							<Card>
+								<CardHeader>
+									<CardTitle>Akademik Profil Bilgileri</CardTitle>
+									<CardDescription>
+										Uzmanlık alanlarınızı ve akademik bilgilerinizi manuel olarak girin.
+										Bu bilgiler AI tabanlı makale eşleştirme sisteminde kullanılacaktır.
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<CVFormSection userId={user.id} />
+								</CardContent>
+							</Card>
+						</TabsContent>
+						<TabsContent value="upload" className="space-y-4">
+							<Card>
+								<CardHeader>
+									<CardTitle>CV Dosyası Yükle</CardTitle>
+									<CardDescription>
+										PDF formatında özgeçmişinizi yükleyebilirsiniz.
+										Admin tarafından AI ile analiz edilebilir.
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<CVUploadSection userId={user.id} />
+								</CardContent>
+							</Card>
+						</TabsContent>
+					</Tabs>
 				</TabsContent>
 
 				<TabsContent value="profile">

@@ -10,7 +10,9 @@ import {
 	ArrowRight,
 	ClipboardCheck,
 	UserPlus,
-	GitBranch
+	GitBranch,
+	Sparkles,
+	Brain
 } from 'lucide-react'
 import { User } from '@supabase/supabase-js'
 import { AdminStats } from '@/features/dashboard/types/dashboard.types'
@@ -265,6 +267,63 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* AI Features */}
+			<Card className="mb-6 border-2 border-indigo-300 bg-gradient-to-br from-indigo-50 to-purple-50">
+				<CardHeader>
+					<div className="flex items-center gap-2">
+						<Brain className="h-6 w-6 text-indigo-600" />
+						<CardTitle className="text-indigo-900 text-xl">AI Hakem Eşleştirme Sistemi</CardTitle>
+						<Badge className="ml-2 bg-indigo-600">
+							<Sparkles className="h-3 w-3 mr-1" />
+							YENİ
+						</Badge>
+					</div>
+					<CardDescription className="text-base">
+						Yapay zeka destekli akıllı hakem eşleştirmesi
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-gray-700 mb-4">
+						Google Gemini AI modellerini kullanarak hakem CV&apos;lerini ve makale içeriklerini analiz edin.
+						Sistem, en uygun hakemleri otomatik olarak belirler ve editörlere %0-100 arası eşleşme skorları
+						ile önerir.
+					</p>
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+						<div className="bg-white/60 p-3 rounded-lg border border-indigo-200">
+							<p className="text-xs text-gray-600 mb-1">Özellikler:</p>
+							<ul className="text-xs text-gray-700 space-y-1">
+								<li>✓ Otomatik CV analizi</li>
+								<li>✓ Makale-hakem eşleştirme</li>
+								<li>✓ Çok boyutlu skorlama</li>
+							</ul>
+						</div>
+						<div className="bg-white/60 p-3 rounded-lg border border-indigo-200">
+							<p className="text-xs text-gray-600 mb-1">Skorlar:</p>
+							<ul className="text-xs text-gray-700 space-y-1">
+								<li>• Konu benzerliği</li>
+								<li>• Anahtar kelime örtüşmesi</li>
+								<li>• Metodoloji uyumu</li>
+							</ul>
+						</div>
+						<div className="bg-white/60 p-3 rounded-lg border border-indigo-200">
+							<p className="text-xs text-gray-600 mb-1">Yönetim:</p>
+							<ul className="text-xs text-gray-700 space-y-1">
+								<li>• CV işleme durumu</li>
+								<li>• Toplu işlemler</li>
+								<li>• Profil güncellemeleri</li>
+							</ul>
+						</div>
+					</div>
+					<Link href="/admin/ai-reviewers">
+						<Button className="w-full bg-indigo-600 hover:bg-indigo-700" size="lg">
+							<Brain className="h-4 w-4 mr-2" />
+							AI Hakem Yönetimi
+							<ArrowRight className="h-4 w-4 ml-2" />
+						</Button>
+					</Link>
+				</CardContent>
+			</Card>
 
 			{/* Priority Actions - Editör Atama */}
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
