@@ -119,8 +119,9 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
   const calculateExpertiseScore = () => {
     let score = 0
 
-    // Research areas (max 30 points)
-    score += Math.min(formData.research_areas.length * 6, 30)
+    // Research areas (max 30 points) - using weight values
+    const totalWeight = formData.research_areas.reduce((sum, ra) => sum + ra.weight, 0)
+    score += Math.min(totalWeight * 10, 30)
 
     // Publications (max 25 points)
     if (formData.publications_count > 50) score += 25
