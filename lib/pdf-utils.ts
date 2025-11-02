@@ -18,65 +18,39 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
     const arrayBuffer = await response.arrayBuffer();
     console.log('[PDF Utils] ArrayBuffer created, size:', arrayBuffer.byteLength, 'bytes');
 
-    try {
-      // Try using pdf-parse first (simpler API)
-      console.log('[PDF Utils] Attempting to use pdf-parse...');
-      const pdfParse = require('pdf-parse');
-      const buffer = Buffer.from(arrayBuffer);
+    // Use pdfjs-dist for extraction
+    console.log('[PDF Utils] Using pdfjs-dist for PDF extraction...');
+    const pdfjsLib = await import('pdfjs-dist');
 
-      console.log('[PDF Utils] Parsing PDF document with pdf-parse...');
-      const data = await pdfParse(buffer, {
-        max: 0, // Parse all pages
-        version: 'v2.0.550' // Use stable version
-      });
+    // Set worker to avoid issues
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-      console.log('[PDF Utils] PDF parsed successfully');
-      console.log('[PDF Utils] Number of pages:', data.numpages);
-      console.log('[PDF Utils] Text length:', data.text.length);
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
 
-      if (!data.text || data.text.length < 50) {
-        console.warn('[PDF Utils] Extracted text is very short or empty');
-        console.log('[PDF Utils] First 500 chars of text:', data.text.substring(0, 500));
-      }
+    console.log('[PDF Utils] PDF loaded with pdfjs-dist, pages:', pdf.numPages);
 
-      return data.text;
-    } catch (pdfParseError) {
-      console.warn('[PDF Utils] pdf-parse failed, falling back to alternative method:', pdfParseError);
+    let fullText = '';
 
-      // Fallback: Use pdfjs-dist for extraction
-      console.log('[PDF Utils] Using pdfjs-dist as fallback...');
-      const pdfjsLib = await import('pdfjs-dist');
-
-      // Set worker to avoid issues
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-      // Load the PDF document
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-
-      console.log('[PDF Utils] PDF loaded with pdfjs-dist, pages:', pdf.numPages);
-
-      let fullText = '';
-
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        fullText += pageText + '\n';
-      }
-
-      console.log('[PDF Utils] Text extraction complete with pdfjs-dist, length:', fullText.length);
-
-      if (!fullText || fullText.length < 50) {
-        console.warn('[PDF Utils] Extracted text is very short or empty');
-        console.log('[PDF Utils] First 500 chars of text:', fullText.substring(0, 500));
-      }
-
-      return fullText;
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: { str: string }) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
     }
+
+    console.log('[PDF Utils] Text extraction complete with pdfjs-dist, length:', fullText.length);
+
+    if (!fullText || fullText.length < 50) {
+      console.warn('[PDF Utils] Extracted text is very short or empty');
+      console.log('[PDF Utils] First 500 chars of text:', fullText.substring(0, 500));
+    }
+
+    return fullText;
   } catch (error) {
     console.error('[PDF Utils] Error extracting text from PDF:', error);
     if (error instanceof Error) {

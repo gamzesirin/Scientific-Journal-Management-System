@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       console.log(JSON.stringify(analysis, null, 2));
       console.log('==================================================');
       console.log('[CV Processing] Key Insights:');
-      console.log('- Research Areas:', analysis.research_areas?.map((r: any) => `${r.area} (${r.weight})`).join(', '));
+      console.log('- Research Areas:', analysis.research_areas?.map((r: { area: string; weight: number }) => `${r.area} (${r.weight})`).join(', '));
       console.log('- Keywords:', analysis.keywords?.slice(0, 10).join(', '));
       console.log('- Expertise Score:', analysis.expertise_score);
       console.log('- Years of Experience:', analysis.years_of_experience);
@@ -197,11 +197,12 @@ export async function POST(request: NextRequest) {
         usingMockMode = true;
         console.log('[CV Processing] Using MOCK data due to API limitations');
       }
-    } catch (aiError: any) {
+    } catch (aiError: unknown) {
       console.error('[CV Processing] AI analysis failed:', aiError);
 
       // Check if it's a quota error
-      if (aiError?.message?.includes('quota') || aiError?.message?.includes('429')) {
+      const errorMessage = aiError instanceof Error ? aiError.message : String(aiError);
+      if (errorMessage.includes('quota') || errorMessage.includes('429')) {
         console.log('[CV Processing] Gemini API quota exceeded, will use mock data');
         // The analyzeCVWithAI should have already returned mock data
         throw aiError; // Re-throw to be handled by outer catch

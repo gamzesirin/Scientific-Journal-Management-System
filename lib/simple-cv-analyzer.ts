@@ -216,7 +216,6 @@ export function analyzeSimpleCV(cvText: string, cvUrl: string): SimpleCVAnalysis
   const detectedDomains: { area: string; weight: number; matches: number }[] = [];
   Object.entries(DOMAIN_KEYWORDS).forEach(([domain, domainKeywords]) => {
     let matchCount = 0;
-    let matchedKeywords: string[] = [];
 
     domainKeywords.forEach(keyword => {
       // Use word boundary matching for better accuracy
@@ -224,7 +223,6 @@ export function analyzeSimpleCV(cvText: string, cvUrl: string): SimpleCVAnalysis
       const matches = cvText.match(regex);
       if (matches) {
         matchCount += matches.length;
-        matchedKeywords.push(keyword);
       }
     });
 
@@ -516,8 +514,18 @@ export interface SimpleMatchingScore {
 }
 
 export function calculateSimpleMatchingScore(
-  reviewerProfile: any,
-  articleAnalysis: any
+  reviewerProfile: {
+    keywords?: string[];
+    domains?: string[];
+    research_areas?: Array<{ area: string; weight: number }>;
+    methodologies?: string[];
+  },
+  articleAnalysis: {
+    keywords?: string[];
+    research_domain?: string;
+    main_topics?: Array<{ topic: string; relevance: number }>;
+    methodology?: string;
+  }
 ): SimpleMatchingScore {
   console.log('[Simple Matching] Calculating matching score without AI...');
 
@@ -539,8 +547,8 @@ export function calculateSimpleMatchingScore(
   console.log('[Simple Matching] Keyword overlap:', matchingKeywords.length, '/', reviewerKeywords.length);
 
   // Calculate topic similarity
-  const reviewerTopics = (reviewerProfile.research_areas || []).map((r: any) => r.area.toLowerCase());
-  const articleTopics = (articleAnalysis.main_topics || []).map((t: any) => t.topic.toLowerCase());
+  const reviewerTopics = (reviewerProfile.research_areas || []).map(r => r.area.toLowerCase());
+  const articleTopics = (articleAnalysis.main_topics || []).map(t => t.topic.toLowerCase());
 
   const matchingTopics = reviewerTopics.filter((rt: string) =>
     articleTopics.some(at => at.includes(rt) || rt.includes(at))
