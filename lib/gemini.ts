@@ -45,7 +45,7 @@ function getGeminiModel(): GenerativeModel | null {
   return _model;
 }
 
-export const GEMINI_MODEL = 'gemini-pro'; // Using the stable Gemini Pro model
+export const GEMINI_MODEL = 'gemini-1.5-flash'; // Using Gemini 1.5 Flash - fast and efficient model for Google AI Studio
 
 /**
  * Generate mock analysis data for testing/development
@@ -81,8 +81,9 @@ function generateMockCVAnalysis(cvText: string, cvUrl: string) {
     years_of_experience: 3 + (hash % 7),
     expertise_score: score,
     cv_analysis_summary: "⚠️ TEST DATA - Bu gerçek CV analizi DEĞİLDİR. Mock/test verisi kullanılmaktadır. Gerçek analiz için Gemini API bağlantısı gereklidir.",
-    gemini_model_version: "mock-model-test",
+    gemini_model_version: GEMINI_MODEL,
     last_cv_processed_url: cvUrl,
+    is_mock_data: true,
   };
 
   console.log('==================================================');
@@ -226,6 +227,9 @@ Return ONLY valid JSON, no additional text.`;
     return formattedResult;
   } catch (error: any) {
     console.error('[Gemini] Error analyzing CV:', error);
+    console.error('[Gemini] Error status:', error?.status);
+    console.error('[Gemini] Error message:', error?.message);
+    console.error('[Gemini] Full error object:', JSON.stringify(error, null, 2));
 
     // Handle network/fetch failures
     if (error?.message?.includes('fetch failed') || error?.message?.includes('network')) {
@@ -270,6 +274,12 @@ Return ONLY valid JSON, no additional text.`;
     // Check for model not found errors
     if (error?.status === 404 || error?.message?.includes('404') || error?.message?.includes('not found')) {
       console.error('[Gemini] MODEL NOT FOUND - The specified model does not exist');
+      console.error('[Gemini] Tried model:', GEMINI_MODEL);
+      console.error('[Gemini] Error message:', error?.message);
+      console.log('[Gemini] Try these alternatives:');
+      console.log('[Gemini] 1. models/gemini-1.5-flash');
+      console.log('[Gemini] 2. models/gemini-1.5-pro');
+      console.log('[Gemini] 3. gemini-pro');
       console.log('[Gemini] Using simple text analysis instead');
 
       API_ACCESSIBLE = false;
@@ -282,6 +292,7 @@ Return ONLY valid JSON, no additional text.`;
     // For any other errors, use simple text analysis
     console.error('[Gemini] Unexpected error, using simple text analysis');
     console.error('[Gemini] Error details:', error.message);
+    console.error('[Gemini] Error type:', typeof error);
     API_ACCESSIBLE = false;
     LAST_API_CHECK = Date.now();
 
@@ -366,7 +377,8 @@ Return ONLY valid JSON, no additional text.`;
         research_domain: "Computer Science",
         complexity_level: "intermediate",
         analysis_summary: "Mock analysis: Article analysis unavailable due to API issues.",
-        gemini_model_version: "mock-model"
+        gemini_model_version: GEMINI_MODEL,
+        is_mock_data: true,
       };
     }
 
@@ -528,7 +540,8 @@ Return ONLY valid JSON.`;
         recommendation_level: "good",
         confidence_score: 80,
         explanation: "Mock analysis: Using simulated matching score.",
-        gemini_model_version: "mock-model"
+        gemini_model_version: GEMINI_MODEL,
+        is_mock_data: true,
       };
     }
 

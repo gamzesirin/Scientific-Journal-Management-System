@@ -192,8 +192,8 @@ export async function POST(request: NextRequest) {
       console.log('- Publications Count:', analysis.publications_count);
       console.log('==================================================');
 
-      // Check if we got mock data
-      if (analysis.gemini_model_version === 'mock-model') {
+      // Check if we got mock data (via is_mock_data flag)
+      if ((analysis as any).is_mock_data === true) {
         usingMockMode = true;
         console.log('[CV Processing] Using MOCK data due to API limitations');
       }
