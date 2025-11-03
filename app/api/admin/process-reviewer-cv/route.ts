@@ -168,47 +168,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Analyze CV with Gemini AI (or mock mode)
+    // Analyze CV with Gemini AI
     console.log('[CV Processing] Starting AI analysis for user:', reviewer.name);
-    let analysis;
-    let usingMockMode = false;
+    const analysis = await analyzeCVWithAI(cleanedText, reviewer.cv_file_url);
+    console.log('[CV Processing] ✓ AI analysis completed successfully');
 
-    try {
-      analysis = await analyzeCVWithAI(cleanedText, reviewer.cv_file_url);
-      console.log('[CV Processing] AI analysis completed successfully');
-
-      // Log the complete AI analysis response
-      console.log('==================================================');
-      console.log('[CV Processing] COMPLETE AI ANALYSIS RESPONSE:');
-      console.log('==================================================');
-      console.log(JSON.stringify(analysis, null, 2));
-      console.log('==================================================');
-      console.log('[CV Processing] Key Insights:');
-      console.log('- Research Areas:', analysis.research_areas?.map((r: { area: string; weight: number }) => `${r.area} (${r.weight})`).join(', '));
-      console.log('- Keywords:', analysis.keywords?.slice(0, 10).join(', '));
-      console.log('- Expertise Score:', analysis.expertise_score);
-      console.log('- Years of Experience:', analysis.years_of_experience);
-      console.log('- H-Index:', analysis.h_index);
-      console.log('- Publications Count:', analysis.publications_count);
-      console.log('==================================================');
-
-      // Check if we got mock data (via is_mock_data flag)
-      if ((analysis as any).is_mock_data === true) {
-        usingMockMode = true;
-        console.log('[CV Processing] Using MOCK data due to API limitations');
-      }
-    } catch (aiError: unknown) {
-      console.error('[CV Processing] AI analysis failed:', aiError);
-
-      // Check if it's a quota error
-      const errorMessage = aiError instanceof Error ? aiError.message : String(aiError);
-      if (errorMessage.includes('quota') || errorMessage.includes('429')) {
-        console.log('[CV Processing] Gemini API quota exceeded, will use mock data');
-        // The analyzeCVWithAI should have already returned mock data
-        throw aiError; // Re-throw to be handled by outer catch
-      }
-      throw aiError;
-    }
+    // Log the complete AI analysis response
+    console.log('==================================================');
+    console.log('[CV Processing] COMPLETE AI ANALYSIS RESPONSE:');
+    console.log('==================================================');
+    console.log(JSON.stringify(analysis, null, 2));
+    console.log('==================================================');
+    console.log('[CV Processing] Key Insights:');
+    console.log('- Research Areas:', analysis.research_areas?.map((r: { area: string; weight: number }) => `${r.area} (${r.weight})`).join(', '));
+    console.log('- Keywords:', analysis.keywords?.slice(0, 10).join(', '));
+    console.log('- Expertise Score:', analysis.expertise_score);
+    console.log('- Years of Experience:', analysis.years_of_experience);
+    console.log('- H-Index:', analysis.h_index);
+    console.log('- Publications Count:', analysis.publications_count);
+    console.log('==================================================');
 
     // Store analysis in database
     console.log('[CV Processing] Storing analysis in database...');
@@ -257,8 +235,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `CV processed successfully for ${reviewer.name}${usingMockMode ? ' (Mock Mode)' : ''}`,
-      usingMockMode,
+      message: `CV processed successfully for ${reviewer.name}`,
       profile: {
         user_id: profile.user_id,
         research_areas: profile.research_areas,

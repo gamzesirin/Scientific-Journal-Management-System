@@ -55,6 +55,13 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    expertise_score: number
+    recommendations: string[]
+    suggested_improvements: string[]
+    analysis_summary: string
+  } | null>(null)
   const supabase = createClient()
 
   // Form state
@@ -116,46 +123,74 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
     }
   }
 
-  const calculateExpertiseScore = () => {
-    let score = 0
+  const analyzeProfileWithAI = async () => {
+    if (formData.research_areas.length === 0) {
+      toast.error('Hata', 'En az bir araştırma alanı eklemelisiniz')
+      return
+    }
 
-    // Research areas (max 30 points) - using weight values
-    const totalWeight = formData.research_areas.reduce((sum, ra) => sum + ra.weight, 0)
-    score += Math.min(totalWeight * 10, 30)
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      toast.error('Oturum Hatası', 'Lütfen tekrar giriş yapın')
+      return
+    }
 
-    // Publications (max 25 points)
-    if (formData.publications_count > 50) score += 25
-    else if (formData.publications_count > 20) score += 20
-    else if (formData.publications_count > 10) score += 15
-    else if (formData.publications_count > 5) score += 10
-    else if (formData.publications_count > 0) score += 5
+    setIsAnalyzing(true)
+    const toastId = toast.loading('AI ile profil analiz ediliyor...')
 
-    // H-index (max 20 points)
-    if (formData.h_index > 30) score += 20
-    else if (formData.h_index > 20) score += 15
-    else if (formData.h_index > 10) score += 10
-    else if (formData.h_index > 5) score += 5
+    try {
+      const response = await fetch('/api/reviewer/analyze-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include cookies for authentication
+        body: JSON.stringify({
+          profileData: formData,
+        }),
+      })
 
-    // Experience (max 15 points)
-    score += Math.min(formData.years_of_experience * 1.5, 15)
+      const data = await response.json()
 
-    // Skills and methodologies (max 10 points)
-    score += Math.min((formData.technical_skills.length + formData.methodologies.length) * 0.5, 10)
+      if (!response.ok) {
+        // Show more detailed error message if available
+        const errorMsg = data.hint ? `${data.error}: ${data.hint}` : (data.error || 'Profil analizi başarısız oldu')
+        throw new Error(errorMsg)
+      }
 
-    return Math.min(Math.round(score), 100)
+      setAiAnalysis({
+        expertise_score: data.expertise_score,
+        recommendations: data.recommendations || [],
+        suggested_improvements: data.suggested_improvements || [],
+        analysis_summary: data.analysis_summary || '',
+      })
+
+      toast.update(toastId, 'AI analizi tamamlandı!', 'success')
+    } catch (error: any) {
+      console.error('AI analysis error:', error)
+      toast.update(toastId, 'AI analizi başarısız', 'error')
+      toast.error('Hata', error.message || 'Profil analiz edilirken hata oluştu')
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
 
   const handleSave = async () => {
+    // First, analyze with AI if not already analyzed
+    if (!aiAnalysis) {
+      toast.error('Hata', 'Lütfen önce "AI ile Analiz Et" butonuna tıklayın')
+      return
+    }
+
     setIsSaving(true)
     const toastId = toast.loading('Profil kaydediliyor...')
 
     try {
-      const expertiseScore = calculateExpertiseScore()
-
       const profileData = {
         user_id: userId,
         ...formData,
-        expertise_score: expertiseScore,
+        expertise_score: aiAnalysis.expertise_score,
         last_analysis_date: new Date().toISOString(),
         // gemini_model_version: 'manual-entry', // Commented out until DB migration is applied
         updated_at: new Date().toISOString()
@@ -173,6 +208,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
 
       setProfile(data)
       setIsEditing(false)
+      setAiAnalysis(null) // Reset AI analysis after saving
       toast.update(toastId, 'Profil başarıyla kaydedildi!', 'success')
     } catch (error: any) {
       console.error('Save error:', error)
@@ -183,6 +219,11 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
     }
   }
 
+  // Reset AI analysis when form data changes
+  const resetAIAnalysis = () => {
+    setAiAnalysis(null)
+  }
+
   // Add functions for different fields
   const addResearchArea = () => {
     if (newResearchArea.area.trim()) {
@@ -191,6 +232,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
         research_areas: [...formData.research_areas, { ...newResearchArea }]
       })
       setNewResearchArea({ area: '', weight: 0.5 })
+      resetAIAnalysis()
     }
   }
 
@@ -199,6 +241,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
       ...formData,
       research_areas: formData.research_areas.filter((_, i) => i !== index)
     })
+    resetAIAnalysis()
   }
 
   const addKeyword = () => {
@@ -208,6 +251,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
         keywords: [...formData.keywords, newKeyword.trim()]
       })
       setNewKeyword('')
+      resetAIAnalysis()
     }
   }
 
@@ -216,6 +260,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
       ...formData,
       keywords: formData.keywords.filter(k => k !== keyword)
     })
+    resetAIAnalysis()
   }
 
   const addSkill = () => {
@@ -225,6 +270,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
         technical_skills: [...formData.technical_skills, newSkill.trim()]
       })
       setNewSkill('')
+      resetAIAnalysis()
     }
   }
 
@@ -233,6 +279,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
       ...formData,
       technical_skills: formData.technical_skills.filter(s => s !== skill)
     })
+    resetAIAnalysis()
   }
 
   const addMethodology = () => {
@@ -242,6 +289,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
         methodologies: [...formData.methodologies, newMethodology.trim()]
       })
       setNewMethodology('')
+      resetAIAnalysis()
     }
   }
 
@@ -250,6 +298,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
       ...formData,
       methodologies: formData.methodologies.filter(m => m !== methodology)
     })
+    resetAIAnalysis()
   }
 
   const addDomain = () => {
@@ -259,6 +308,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
         domains: [...formData.domains, newDomain.trim()]
       })
       setNewDomain('')
+      resetAIAnalysis()
     }
   }
 
@@ -267,6 +317,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
       ...formData,
       domains: formData.domains.filter(d => d !== domain)
     })
+    resetAIAnalysis()
   }
 
   if (isLoading) {
@@ -506,7 +557,10 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
                 type="number"
                 min="0"
                 value={formData.publications_count}
-                onChange={(e) => setFormData({ ...formData, publications_count: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  setFormData({ ...formData, publications_count: parseInt(e.target.value) || 0 })
+                  resetAIAnalysis()
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -516,7 +570,10 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
                 type="number"
                 min="0"
                 value={formData.h_index}
-                onChange={(e) => setFormData({ ...formData, h_index: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  setFormData({ ...formData, h_index: parseInt(e.target.value) || 0 })
+                  resetAIAnalysis()
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -526,7 +583,10 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
                 type="number"
                 min="0"
                 value={formData.years_of_experience}
-                onChange={(e) => setFormData({ ...formData, years_of_experience: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  setFormData({ ...formData, years_of_experience: parseInt(e.target.value) || 0 })
+                  resetAIAnalysis()
+                }}
               />
             </div>
           </div>
@@ -626,26 +686,92 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
               placeholder="Kendinizi ve uzmanlık alanlarınızı kısaca tanıtın..."
               rows={4}
               value={formData.cv_analysis_summary}
-              onChange={(e) => setFormData({ ...formData, cv_analysis_summary: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, cv_analysis_summary: e.target.value })
+                resetAIAnalysis()
+              }}
             />
           </div>
 
-          {/* Calculated Expertise Score */}
-          <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-blue-600" />
-                <span className="font-semibold text-blue-900">Tahmini Uzmanlık Skoru:</span>
+          {/* AI Analysis Section */}
+          <div className="space-y-4">
+            <Button
+              onClick={analyzeProfileWithAI}
+              disabled={isAnalyzing || formData.research_areas.length === 0}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+            >
+              {isAnalyzing ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                  AI ile Analiz Ediliyor...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  AI ile Profili Analiz Et
+                </>
+              )}
+            </Button>
+
+            {aiAnalysis && (
+              <div className="space-y-4">
+                {/* AI Score Display */}
+                <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-2 border-purple-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-5 w-5 text-purple-600" />
+                      <span className="font-semibold text-purple-900">AI Uzmanlık Skoru:</span>
+                    </div>
+                    <span className="text-2xl font-bold text-purple-600">{aiAnalysis.expertise_score}/100</span>
+                  </div>
+                </div>
+
+                {/* AI Summary */}
+                {aiAnalysis.analysis_summary && (
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-sm text-blue-900 mb-2">AI Analiz Özeti</h4>
+                    <p className="text-sm text-gray-700">{aiAnalysis.analysis_summary}</p>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {aiAnalysis.recommendations && aiAnalysis.recommendations.length > 0 && (
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-sm text-green-900 mb-2">AI Önerileri</h4>
+                    <ul className="space-y-1">
+                      {aiAnalysis.recommendations.map((rec, idx) => (
+                        <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                          <span className="text-green-600 mt-0.5">✓</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Suggested Improvements */}
+                {aiAnalysis.suggested_improvements && aiAnalysis.suggested_improvements.length > 0 && (
+                  <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <h4 className="font-semibold text-sm text-yellow-900 mb-2">Geliştirme Önerileri</h4>
+                    <ul className="space-y-1">
+                      {aiAnalysis.suggested_improvements.map((imp, idx) => (
+                        <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                          <span className="text-yellow-600 mt-0.5">💡</span>
+                          <span>{imp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <span className="text-2xl font-bold text-blue-600">{calculateExpertiseScore()}/100</span>
-            </div>
+            )}
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
             <Button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || !aiAnalysis}
               className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >
               {isSaving ? (
@@ -664,6 +790,7 @@ export default function CVFormSection({ userId }: CVFormSectionProps) {
               <Button
                 onClick={() => {
                   setIsEditing(false)
+                  setAiAnalysis(null)
                   fetchProfile() // Reset to original data
                 }}
                 variant="outline"
