@@ -1,33 +1,29 @@
 import { GoogleGenAI } from '@google/genai'
 
-export const GEMINI_MODEL = 'models/gemini-2.5-flash' // Using Gemini 2.5 Flash (stable version)
+// Note: gemini-2.5-flash uses thinking tokens which count against maxOutputTokens
+// We've increased maxOutputTokens to 8192 to accommodate thinking tokens
+export const GEMINI_MODEL = 'models/gemini-2.5-flash' // Using Gemini 2.5 Flash (advanced reasoning)
+
+// Debug mode - set to false to reduce log output
+const DEBUG_MODE = false
 
 // Initialize Gemini client
 let _genAI: GoogleGenAI | null = null
 
 function getGeminiClient(): GoogleGenAI {
 	if (!_genAI) {
-		console.log('[Gemini] 🔍 Environment check:')
-		console.log('[Gemini] - process.env.GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET ✓' : 'NOT SET ✗')
-		console.log(
-			'[Gemini] - process.env.NEXT_PUBLIC_GEMINI_API_KEY:',
-			process.env.NEXT_PUBLIC_GEMINI_API_KEY ? 'SET ✓' : 'NOT SET ✗'
-		)
-
 		const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY
 
 		if (!apiKey) {
-			console.error('[Gemini] ❌ CRITICAL: No API key found in environment!')
-			console.error('[Gemini] Checked variables: GEMINI_API_KEY, NEXT_PUBLIC_GEMINI_API_KEY')
+			console.error('[Gemini] ❌ No API key found')
 			throw new Error('GEMINI_API_KEY is not set in environment variables')
 		}
 
-		console.log('[Gemini] ✓ API Key found:', apiKey.substring(0, 15) + '...' + apiKey.substring(apiKey.length - 4))
-		console.log('[Gemini] ✓ API Key length:', apiKey.length, 'characters')
-		console.log('[Gemini] ✓ Initializing client with model:', GEMINI_MODEL)
+		if (DEBUG_MODE) {
+			console.log('[Gemini] ✓ Initializing client with model:', GEMINI_MODEL)
+		}
 
 		_genAI = new GoogleGenAI({ apiKey })
-		console.log('[Gemini] ✓ Client initialized successfully')
 	}
 
 	return _genAI
@@ -57,11 +53,14 @@ function safeJSONParse(text: string): any {
 
 		// Try to parse
 		return JSON.parse(cleanedText)
-	} catch (error: any) {
-		console.error('[Gemini] JSON Parse Error:', error.message)
-		console.error('[Gemini] Problematic text (first 500 chars):', text.substring(0, 500))
-		console.error('[Gemini] Problematic text (last 500 chars):', text.substring(Math.max(0, text.length - 500)))
-		throw new Error(`Failed to parse JSON response: ${error.message}`)
+	} catch (error: unknown) {
+		const err = error as { message: string }
+		console.error('[Gemini] ❌ JSON Parse Error:', err.message)
+		if (DEBUG_MODE) {
+			console.error('[Gemini] Text preview (first 500):', text.substring(0, 500))
+			console.error('[Gemini] Text preview (last 500):', text.substring(Math.max(0, text.length - 500)))
+		}
+		throw new Error(`Failed to parse JSON response: ${err.message}`)
 	}
 }
 
@@ -70,64 +69,55 @@ function safeJSONParse(text: string): any {
  */
 export async function analyzeCVWithAI(cvText: string, cvUrl: string) {
 	console.log('[Gemini] Starting CV analysis...')
-	console.log('[Gemini] CV text length:', cvText.length)
 
 	try {
-		const prompt = `You are an expert in analyzing academic CVs and research profiles.
-Analyze the following CV text and extract structured information about the researcher's expertise.
+		const prompt = `Sen akademik CV ve araştırma profillerini analiz etme konusunda uzmansın.
+Aşağıdaki CV metnini analiz et ve araştırmacının uzmanlığı hakkında yapılandırılmış bilgi çıkar.
 
-CV Text:
+CV Metni:
 ${cvText.substring(0, 8000)}
 
-Extract and return a JSON object with the following structure:
+Aşağıdaki yapıya sahip bir JSON nesnesi döndür (tüm metinler Türkçe olmalı):
 {
   "research_areas": [
-    {"area": "Machine Learning", "weight": 0.9},
-    {"area": "Natural Language Processing", "weight": 0.8}
+    {"area": "Makine Öğrenmesi", "weight": 0.9},
+    {"area": "Doğal Dil İşleme", "weight": 0.8}
   ],
-  "keywords": ["deep learning", "transformers", "neural networks", "NLP"],
+  "keywords": ["derin öğrenme", "transformers", "sinir ağları", "NLP"],
   "technical_skills": ["Python", "PyTorch", "TensorFlow", "scikit-learn"],
-  "methodologies": ["supervised learning", "transfer learning", "fine-tuning"],
-  "domains": ["Computer Science", "Artificial Intelligence"],
+  "methodologies": ["denetimli öğrenme", "transfer öğrenme", "ince ayar"],
+  "domains": ["Bilgisayar Bilimleri", "Yapay Zeka"],
   "publications_count": 15,
   "h_index": 8,
   "years_of_experience": 5,
   "expertise_score": 85,
-  "summary": "Brief 2-3 sentence summary"
+  "summary": "Kısa 2-3 cümlelik özet (Türkçe)"
 }
 
-IMPORTANT JSON RULES:
-- Use double quotes for strings
-- Escape special characters in strings (quotes, newlines, backslashes)
-- Keep summary text short and simple
-- No line breaks inside string values
-- Return ONLY valid JSON, no markdown formatting, no code blocks
+ÖNEMLİ JSON KURALLARI:
+- String'ler için çift tırnak kullan
+- Özel karakterleri escape et (tırnak, satır sonu, backslash)
+- Özet metnini kısa ve basit tut
+- String değerlerinin içinde satır sonu olmasın
+- SADECE geçerli JSON döndür, markdown formatı veya kod blokları kullanma
 
-Guidelines:
-- Assign weights (0-1) to research areas based on prominence in CV
-- Extract 10-20 most relevant keywords
-- Publications count should be approximate if not explicitly stated
-- H-index should be estimated based on publication quality/venues if not stated
-- Years of experience calculated from graduation/first publication
-- Expertise score (0-100) is overall assessment of research maturity
-- Be conservative with estimates
-- Focus on research-relevant information`
+Yönergeler:
+- Araştırma alanlarına CV'deki önem derecesine göre ağırlık (0-1) ata
+- En alakalı 10-20 anahtar kelimeyi çıkar (Türkçe)
+- Yayın sayısı açıkça belirtilmemişse yaklaşık değer ver
+- H-index belirtilmemişse yayın kalitesi/yeri bazında tahmin et
+- Deneyim yılı mezuniyet/ilk yayından hesapla
+- Uzmanlık skoru (0-100) genel araştırma olgunluğunun değerlendirmesidir
+- Tahminlerde muhafazakar ol
+- Araştırma ile ilgili bilgilere odaklan
+- TÜM METİNLER TÜRKÇE OLMALI (alanlar, anahtar kelimeler, metodolojiler, özet vb.)`
 
 		const client = getGeminiClient()
 
-		console.log('[Gemini] ══════════════════════════════════════════════')
-		console.log('[Gemini] 🚀 API CALL DETAILS (CV Analysis):')
-		console.log('[Gemini] ══════════════════════════════════════════════')
-		console.log('[Gemini] Model:', GEMINI_MODEL)
-		console.log('[Gemini] Prompt length:', prompt.length, 'characters')
-		console.log('[Gemini] Config:', {
-			temperature: 0.3,
-			topP: 0.8,
-			topK: 40,
-			maxOutputTokens: 2048
-		})
-		console.log('[Gemini] ──────────────────────────────────────────────')
-		console.log('[Gemini] Calling API...')
+		if (DEBUG_MODE) {
+			console.log('[Gemini] Model:', GEMINI_MODEL)
+			console.log('[Gemini] Prompt length:', prompt.length)
+		}
 
 		const result = await client.models.generateContent({
 			model: GEMINI_MODEL,
@@ -136,40 +126,35 @@ Guidelines:
 				temperature: 0.3,
 				topP: 0.8,
 				topK: 40,
-				maxOutputTokens: 2048
+				maxOutputTokens: 8192 // Increased significantly for gemini-2.x thinking tokens
 			}
 		})
 
-		console.log('[Gemini] ✓ API response received')
-		console.log('[Gemini] ──────────────────────────────────────────────')
+		// Check for MAX_TOKENS finish reason first
+		if (result.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+			console.error('[Gemini] ❌ Response truncated due to MAX_TOKENS')
+			throw new Error('Response truncated - increase maxOutputTokens or simplify prompt')
+		}
 
 		// Extract text from response
 		let text
-		if (typeof result.text === 'function') {
-			text = result.text()
-		} else if (typeof result.text === 'string') {
+		if (result.text) {
 			text = result.text
 		} else if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
 			text = result.candidates[0].content.parts[0].text
 		}
 
 		if (!text) {
-			console.error('[Gemini] ❌ ERROR: No content in response')
-			console.error('[Gemini] Response structure:', JSON.stringify(result, null, 2).substring(0, 1000))
+			console.error('[Gemini] ❌ No content in response')
+			if (DEBUG_MODE) {
+				console.error('[Gemini] Response:', JSON.stringify(result, null, 2).substring(0, 1000))
+			}
 			throw new Error('No content in Gemini response')
 		}
 
-		console.log('[Gemini] ✓ Response text length:', text.length, 'characters')
-		console.log('[Gemini] ✓ Response preview (first 200 chars):', text.substring(0, 200))
-		console.log('[Gemini] ──────────────────────────────────────────────')
-		console.log('[Gemini] Parsing JSON...')
-
 		const analysis = safeJSONParse(text)
 
-		console.log('[Gemini] ✓ JSON parsed successfully')
-
-		console.log('[Gemini] ✓ CV Analysis completed successfully')
-		console.log('[Gemini] Expertise score:', analysis.expertise_score)
+		console.log('[Gemini] ✓ CV Analysis completed (score:', analysis.expertise_score + ')')
 
 		return {
 			research_areas: analysis.research_areas || [],
@@ -185,23 +170,16 @@ Guidelines:
 			gemini_model_version: GEMINI_MODEL,
 			last_cv_processed_url: cvUrl
 		}
-	} catch (error: any) {
-		console.error('[Gemini] ══════════════════════════════════════════════')
-		console.error('[Gemini] ❌ ERROR in CV Analysis:')
-		console.error('[Gemini] ══════════════════════════════════════════════')
-		console.error('[Gemini] Error type:', error.constructor.name)
-		console.error('[Gemini] Error message:', error.message)
-		console.error('[Gemini] Error status:', error.status)
-		console.error('[Gemini] Error code:', error.code)
-		if (error.response) {
-			console.error('[Gemini] API Response:', JSON.stringify(error.response, null, 2))
+	} catch (error: unknown) {
+		const err = error as { message: string; status?: string; code?: string; response?: unknown; stack?: string }
+		console.error('[Gemini] ❌ CV Analysis error:', err.message)
+		if (DEBUG_MODE) {
+			console.error('[Gemini] Error details:', { status: err.status, code: err.code })
+			if (err.response) {
+				console.error('[Gemini] API Response:', JSON.stringify(err.response, null, 2))
+			}
 		}
-		if (error.stack) {
-			console.error('[Gemini] Stack trace:', error.stack)
-		}
-		console.error('[Gemini] Full error object:', JSON.stringify(error, null, 2))
-		console.error('[Gemini] ══════════════════════════════════════════════')
-		throw new Error(`Gemini API error: ${error.message}`)
+		throw new Error(`Gemini API error: ${err.message}`)
 	}
 }
 
@@ -214,41 +192,40 @@ export async function analyzeArticleWithAI(title: string, abstract: string, full
 	try {
 		const text = `Title: ${title}\n\nAbstract: ${abstract}${fullTextExcerpt ? `\n\nExcerpt: ${fullTextExcerpt}` : ''}`
 
-		const prompt = `You are an expert in analyzing academic research papers.
-Analyze the following article and extract structured information.
+		const prompt = `Sen akademik araştırma makalelerini analiz etme konusunda uzmansın.
+Aşağıdaki makaleyi analiz et ve yapılandırılmış bilgi çıkar.
 
 ${text.substring(0, 6000)}
 
-Extract and return a JSON object with the following structure:
+Aşağıdaki yapıya sahip bir JSON nesnesi döndür (tüm metinler Türkçe olmalı):
 {
   "main_topics": [
-    {"topic": "Machine Learning", "relevance": 0.95},
-    {"topic": "Computer Vision", "relevance": 0.8}
+    {"topic": "Makine Öğrenmesi", "relevance": 0.95},
+    {"topic": "Bilgisayarlı Görü", "relevance": 0.8}
   ],
-  "keywords": ["deep learning", "image classification", "CNN"],
-  "methodology": "Experimental",
-  "research_domain": "Computer Science",
-  "complexity_level": "intermediate",
-  "summary": "Brief 2-3 sentence summary"
+  "keywords": ["derin öğrenme", "görüntü sınıflandırma", "CNN"],
+  "methodology": "Deneysel",
+  "research_domain": "Bilgisayar Bilimleri",
+  "complexity_level": "orta",
+  "summary": "Kısa 2-3 cümlelik özet (Türkçe)"
 }
 
-IMPORTANT JSON RULES:
-- Use double quotes for strings
-- Escape special characters in strings
-- Keep summary short and on a single line
-- No line breaks inside string values
-- Return ONLY valid JSON, no markdown formatting
+ÖNEMLİ JSON KURALLARI:
+- String'ler için çift tırnak kullan
+- Özel karakterleri escape et
+- Özeti kısa ve tek satırda tut
+- String değerlerinin içinde satır sonu olmasın
+- SADECE geçerli JSON döndür, markdown formatı kullanma
 
-Guidelines:
-- Identify 3-5 main topics with relevance scores (0-1)
-- Extract 10-15 most important keywords
-- Methodology: Experimental/Theoretical/Survey/Case Study
-- Complexity level: basic/intermediate/advanced
-- Summary should capture the core contribution`
+Yönergeler:
+- İlişki skorları (0-1) ile 3-5 ana konu belirle (Türkçe)
+- En önemli 10-15 anahtar kelimeyi çıkar (Türkçe)
+- Metodoloji: Deneysel/Teorik/Tarama/Örnek Olay
+- Karmaşıklık seviyesi: temel/orta/ileri
+- Özet ana katkıyı yakalamalı (Türkçe)
+- TÜM METİNLER TÜRKÇE OLMALI`
 
 		const client = getGeminiClient()
-
-		console.log('[Gemini] Calling Gemini API for article analysis...')
 
 		const result = await client.models.generateContent({
 			model: GEMINI_MODEL,
@@ -257,32 +234,35 @@ Guidelines:
 				temperature: 0.3,
 				topP: 0.8,
 				topK: 40,
-				maxOutputTokens: 2048
+				maxOutputTokens: 8192 // Increased significantly for gemini-2.x thinking tokens
 			}
 		})
 
+		// Check for MAX_TOKENS finish reason first
+		if (result.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+			console.error('[Gemini] ❌ ERROR: Response truncated due to MAX_TOKENS')
+			throw new Error('Response truncated - increase maxOutputTokens or simplify prompt')
+		}
+
 		// Extract text from response
 		let responseText
-		if (typeof result.text === 'function') {
-			responseText = result.text()
-		} else if (typeof result.text === 'string') {
+		if (result.text) {
 			responseText = result.text
 		} else if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
 			responseText = result.candidates[0].content.parts[0].text
 		}
 
 		if (!responseText) {
-			console.error('[Gemini] ❌ ERROR: No content in article analysis response')
-			console.error('[Gemini] Response structure:', JSON.stringify(result, null, 2).substring(0, 1000))
+			console.error('[Gemini] ❌ No content in article response')
+			if (DEBUG_MODE) {
+				console.error('[Gemini] Response:', JSON.stringify(result, null, 2).substring(0, 1000))
+			}
 			throw new Error('No content in Gemini response')
 		}
-
-		console.log('[Gemini] Article response text length:', responseText.length)
 
 		const analysis = safeJSONParse(responseText)
 
 		console.log('[Gemini] ✓ Article analysis completed')
-		console.log('[Gemini] Main topics:', analysis.main_topics?.map((t: any) => t.topic).join(', '))
 
 		return {
 			main_topics: analysis.main_topics || [],
@@ -293,9 +273,10 @@ Guidelines:
 			analysis_summary: analysis.summary || '',
 			gemini_model_version: GEMINI_MODEL
 		}
-	} catch (error: any) {
-		console.error('[Gemini] ✗ Error analyzing article:', error)
-		throw new Error(`Gemini API error: ${error.message}`)
+	} catch (error: unknown) {
+		const err = error as { message: string }
+		console.error('[Gemini] ❌ Article analysis error:', err.message)
+		throw new Error(`Gemini API error: ${err.message}`)
 	}
 }
 
@@ -313,37 +294,31 @@ export async function analyzeManualProfileWithAI(profileData: {
 	years_of_experience: number
 	cv_analysis_summary?: string
 }) {
-	console.log('[Gemini] Starting manual profile analysis with AI...')
-	console.log('[Gemini] Profile:', {
-		research_areas: profileData.research_areas?.length,
-		keywords: profileData.keywords?.length,
-		publications: profileData.publications_count,
-		h_index: profileData.h_index
-	})
+	console.log('[Gemini] Starting profile analysis...')
 
 	try {
-		const prompt = `You are an expert in evaluating academic researcher profiles.
+		const prompt = `Sen akademik araştırmacı profillerini değerlendirme konusunda uzmansın.
 
-Analyze the following researcher profile and provide a comprehensive evaluation.
+Aşağıdaki araştırmacı profilini analiz et ve kapsamlı bir değerlendirme yap.
 
-Profile Data:
-- Research Areas: ${JSON.stringify(profileData.research_areas)}
-- Keywords: ${JSON.stringify(profileData.keywords)}
-- Technical Skills: ${JSON.stringify(profileData.technical_skills)}
-- Methodologies: ${JSON.stringify(profileData.methodologies)}
-- Domains: ${JSON.stringify(profileData.domains)}
-- Publications Count: ${profileData.publications_count}
-- H-Index: ${profileData.h_index}
-- Years of Experience: ${profileData.years_of_experience}
+Profil Verileri:
+- Araştırma Alanları: ${JSON.stringify(profileData.research_areas)}
+- Anahtar Kelimeler: ${JSON.stringify(profileData.keywords)}
+- Teknik Beceriler: ${JSON.stringify(profileData.technical_skills)}
+- Metodolojiler: ${JSON.stringify(profileData.methodologies)}
+- Alanlar: ${JSON.stringify(profileData.domains)}
+- Yayın Sayısı: ${profileData.publications_count}
+- H-Endeksi: ${profileData.h_index}
+- Deneyim Yılı: ${profileData.years_of_experience}
 
-Calculate an expertise score (0-100) based on:
-1. Research area diversity and weights (30%)
-2. Publication quality and quantity (25%)
-3. H-index relative to experience (20%)
-4. Years of experience (15%)
-5. Technical skills breadth (10%)
+Aşağıdaki kriterlere göre uzmanlık skoru (0-100) hesapla:
+1. Araştırma alanı çeşitliliği ve ağırlıkları (%30)
+2. Yayın kalitesi ve miktarı (%25)
+3. Deneyime göre H-endeksi (%20)
+4. Deneyim yılı (%15)
+5. Teknik beceri genişliği (%10)
 
-Return a JSON object with:
+Aşağıdaki yapıda JSON döndür (tüm metinler Türkçe olmalı):
 {
   "expertise_score": 85,
   "score_breakdown": {
@@ -353,53 +328,34 @@ Return a JSON object with:
     "experience_score": 12,
     "technical_skills_score": 9
   },
-  "analysis_summary": "Brief one-line summary",
+  "analysis_summary": "Kısa tek satırlık özet (Türkçe)",
   "recommendations": [
-    "Recommendation 1",
-    "Recommendation 2"
+    "Öneri 1 (Türkçe)",
+    "Öneri 2 (Türkçe)"
   ],
   "suggested_improvements": [
-    "Improvement 1",
-    "Improvement 2"
+    "İyileştirme önerisi 1 (Türkçe)",
+    "İyileştirme önerisi 2 (Türkçe)"
   ]
 }
 
-IMPORTANT JSON RULES:
-- Use double quotes for strings
-- Keep all text short and on single lines
-- Escape special characters
-- No line breaks inside string values
-- Return ONLY valid JSON, no markdown
+ÖNEMLİ JSON KURALLARI:
+- String'ler için çift tırnak kullan
+- Tüm metinleri kısa ve tek satırda tut
+- Özel karakterleri escape et
+- String değerlerinin içinde satır sonu olmasın
+- SADECE geçerli JSON döndür, markdown kullanma
 
-Guidelines:
-- Be realistic and fair in scoring
-- Consider career stage (early vs established)
-- H-index relative to years of experience
-- Research areas with higher weights contribute more
-- Provide 2-3 actionable recommendations
-- Be encouraging but honest`
+Yönergeler:
+- Skorlamada gerçekçi ve adil ol
+- Kariyer aşamasını göz önünde bulundur (yeni başlayan vs. yerleşik)
+- H-endeksini deneyim yılına göre değerlendir
+- Ağırlığı yüksek araştırma alanları daha fazla katkıda bulunur
+- 2-3 uygulanabilir öneri ver (Türkçe)
+- Cesaretlendirici ama dürüst ol
+- TÜM METİNLER TÜRKÇE OLMALI`
 
 		const client = getGeminiClient()
-
-		console.log('[Gemini] ══════════════════════════════════════════════')
-		console.log('[Gemini] 🚀 API CALL DETAILS (Profile Analysis):')
-		console.log('[Gemini] ══════════════════════════════════════════════')
-		console.log('[Gemini] Model:', GEMINI_MODEL)
-		console.log('[Gemini] Prompt length:', prompt.length, 'characters')
-		console.log('[Gemini] Profile data:', {
-			research_areas: profileData.research_areas.length,
-			keywords: profileData.keywords.length,
-			publications: profileData.publications_count,
-			h_index: profileData.h_index
-		})
-		console.log('[Gemini] Config:', {
-			temperature: 0.4,
-			topP: 0.8,
-			topK: 40,
-			maxOutputTokens: 2048
-		})
-		console.log('[Gemini] ──────────────────────────────────────────────')
-		console.log('[Gemini] Calling API...')
 
 		const result = await client.models.generateContent({
 			model: GEMINI_MODEL,
@@ -408,61 +364,46 @@ Guidelines:
 				temperature: 0.4,
 				topP: 0.8,
 				topK: 40,
-				maxOutputTokens: 2048
+				maxOutputTokens: 8192 // Increased significantly for gemini-2.x thinking tokens
 			}
 		})
 
-		console.log('[Gemini] ✓ API response received')
-		console.log('[Gemini] ──────────────────────────────────────────────')
-		console.log('[Gemini] Response object type:', typeof result)
-		console.log('[Gemini] Response object keys:', Object.keys(result))
-
-		// Check if text is a method or property
-		let responseText
-		if (typeof result.text === 'function') {
-			console.log('[Gemini] result.text is a function, calling it...')
-			responseText = result.text()
-		} else if (typeof result.text === 'string') {
-			console.log('[Gemini] result.text is a string property')
-			responseText = result.text
-		} else {
-			console.log('[Gemini] result.text type:', typeof result.text)
-			console.log('[Gemini] Checking for candidates...')
-
-			// Try alternative response structure
-			if (result.candidates && result.candidates.length > 0) {
-				console.log('[Gemini] Found candidates in response')
-				const candidate = result.candidates[0]
-				console.log('[Gemini] Candidate:', JSON.stringify(candidate, null, 2).substring(0, 500))
-
-				if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-					responseText = candidate.content.parts[0].text
-					console.log('[Gemini] Extracted text from candidate.content.parts[0].text')
-				}
-			}
+		// Check for MAX_TOKENS finish reason first
+		if (result.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+			console.error('[Gemini] ❌ Response truncated due to MAX_TOKENS')
+			throw new Error('Response truncated - increase maxOutputTokens or simplify prompt')
 		}
 
-		console.log('[Gemini] Response text type:', typeof responseText)
-		console.log('[Gemini] Response text length:', responseText?.length)
-		console.log('[Gemini] Response text preview:', responseText?.substring(0, 200))
+		// Extract text from new @google/genai v1.28.0 response format
+		let responseText: string | undefined
+		const resultAny = result as any
+
+		// Method 1: Try result.text property (most common in new SDK)
+		if (result.text) {
+			responseText = result.text
+		}
+		// Method 2: Try result.candidates[0].content.parts[0].text (legacy format)
+		else if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+			responseText = result.candidates[0].content.parts[0].text
+		}
+		// Method 3: Check all possible properties
+		else if (resultAny.response?.text) {
+			responseText = resultAny.response.text
+		} else if (resultAny.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+			responseText = resultAny.response.candidates[0].content.parts[0].text
+		}
 
 		if (!responseText) {
-			console.error('[Gemini] ❌ ERROR: No content in response')
-			console.error('[Gemini] Result object:', JSON.stringify(result, null, 2).substring(0, 2000))
-			throw new Error('No content in Gemini response')
+			console.error('[Gemini] ❌ No content in response')
+			if (DEBUG_MODE) {
+				console.error('[Gemini] Response:', JSON.stringify(result, null, 2).substring(0, 1500))
+			}
+			throw new Error('No content in Gemini response - tried all extraction methods')
 		}
-
-		console.log('[Gemini] ✓ Response text length:', responseText.length, 'characters')
-		console.log('[Gemini] ✓ Response preview (first 300 chars):', responseText.substring(0, 300))
-		console.log('[Gemini] ──────────────────────────────────────────────')
-		console.log('[Gemini] Parsing JSON...')
 
 		const analysis = safeJSONParse(responseText)
 
-		console.log('[Gemini] ✓ JSON parsed successfully')
-
-		console.log('[Gemini] ✓ Profile analysis completed')
-		console.log('[Gemini] Expertise Score:', analysis.expertise_score)
+		console.log('[Gemini] ✓ Profile analysis completed (score:', analysis.expertise_score + ')')
 
 		return {
 			expertise_score: analysis.expertise_score || 0,
@@ -472,23 +413,16 @@ Guidelines:
 			suggested_improvements: analysis.suggested_improvements || [],
 			gemini_model_version: GEMINI_MODEL
 		}
-	} catch (error: any) {
-		console.error('[Gemini] ══════════════════════════════════════════════')
-		console.error('[Gemini] ❌ ERROR in Profile Analysis:')
-		console.error('[Gemini] ══════════════════════════════════════════════')
-		console.error('[Gemini] Error type:', error.constructor.name)
-		console.error('[Gemini] Error message:', error.message)
-		console.error('[Gemini] Error status:', error.status)
-		console.error('[Gemini] Error code:', error.code)
-		if (error.response) {
-			console.error('[Gemini] API Response:', JSON.stringify(error.response, null, 2))
+	} catch (error: unknown) {
+		const err = error as { message: string; status?: string; code?: string; response?: unknown }
+		console.error('[Gemini] ❌ Profile analysis error:', err.message)
+		if (DEBUG_MODE) {
+			console.error('[Gemini] Error details:', { status: err.status, code: err.code })
+			if (err.response) {
+				console.error('[Gemini] API Response:', JSON.stringify(err.response, null, 2))
+			}
 		}
-		if (error.stack) {
-			console.error('[Gemini] Stack trace:', error.stack)
-		}
-		console.error('[Gemini] Full error object:', JSON.stringify(error, null, 2))
-		console.error('[Gemini] ══════════════════════════════════════════════')
-		throw new Error(`Gemini API error: ${error.message}`)
+		throw new Error(`Gemini API error: ${err.message}`)
 	}
 }
 
@@ -497,54 +431,52 @@ Guidelines:
  */
 export async function calculateMatchingScore(reviewerProfile: any, articleAnalysis: any) {
 	console.log('[Gemini] Calculating matching score...')
-	console.log('[Gemini] Reviewer:', reviewerProfile.users?.name || 'Unknown')
 
 	try {
-		const prompt = `You are an expert in matching academic reviewers to research papers.
+		const prompt = `Sen akademik hakemleri araştırma makalelerine eşleştirme konusunda uzmansın.
 
-Reviewer Profile:
-- Research Areas: ${JSON.stringify(reviewerProfile.research_areas)}
-- Keywords: ${JSON.stringify(reviewerProfile.keywords)}
-- Publications: ${reviewerProfile.publications_count}
-- H-Index: ${reviewerProfile.h_index}
-- Experience: ${reviewerProfile.years_of_experience} years
+Hakem Profili:
+- Araştırma Alanları: ${JSON.stringify(reviewerProfile.research_areas)}
+- Anahtar Kelimeler: ${JSON.stringify(reviewerProfile.keywords)}
+- Yayınlar: ${reviewerProfile.publications_count}
+- H-Endeksi: ${reviewerProfile.h_index}
+- Deneyim: ${reviewerProfile.years_of_experience} yıl
 
-Article Analysis:
-- Main Topics: ${JSON.stringify(articleAnalysis.main_topics)}
-- Keywords: ${JSON.stringify(articleAnalysis.keywords)}
-- Domain: ${articleAnalysis.research_domain}
+Makale Analizi:
+- Ana Konular: ${JSON.stringify(articleAnalysis.main_topics)}
+- Anahtar Kelimeler: ${JSON.stringify(articleAnalysis.keywords)}
+- Alan: ${articleAnalysis.research_domain}
 
-Calculate matching scores and return JSON:
+Eşleşme skorlarını hesapla ve JSON döndür (tüm metinler Türkçe olmalı):
 {
   "overall_match_score": 85,
   "topic_similarity_score": 90,
   "keyword_overlap_score": 80,
   "methodology_match_score": 85,
   "domain_expertise_score": 95,
-  "matching_keywords": ["machine learning", "deep learning"],
-  "matching_topics": ["AI", "Neural Networks"],
-  "mismatch_reasons": ["Requires more biology expertise"],
-  "recommendation_level": "excellent",
+  "matching_keywords": ["makine öğrenmesi", "derin öğrenme"],
+  "matching_topics": ["Yapay Zeka", "Sinir Ağları"],
+  "mismatch_reasons": ["Daha fazla biyoloji uzmanlığı gerektirir"],
+  "recommendation_level": "mükemmel",
   "confidence_score": 85,
-  "explanation": "Brief one-line explanation"
+  "explanation": "Kısa tek satırlık açıklama (Türkçe)"
 }
 
-IMPORTANT JSON RULES:
-- Use double quotes for strings
-- Keep all text short and on single lines
-- No line breaks inside string values
-- Return ONLY valid JSON, no markdown
+ÖNEMLİ JSON KURALLARI:
+- String'ler için çift tırnak kullan
+- Tüm metinleri kısa ve tek satırda tut
+- String değerlerinin içinde satır sonu olmasın
+- SADECE geçerli JSON döndür, markdown kullanma
 
-Scoring Guidelines:
-- All scores 0-100
-- overall_match_score is weighted average
-- Consider topic overlap, keyword matches
-- recommendation_level: excellent (80+), good (60-79), moderate (40-59), low (<40)
-- confidence_score based on data quality`
+Skorlama Yönergeleri:
+- Tüm skorlar 0-100 arasında
+- overall_match_score ağırlıklı ortalama
+- Konu örtüşmesi, anahtar kelime eşleşmelerini göz önünde bulundur
+- recommendation_level: mükemmel (80+), iyi (60-79), orta (40-59), düşük (<40)
+- confidence_score veri kalitesine göre
+- TÜM METİNLER TÜRKÇE OLMALI (eşleşen anahtar kelimeler, konular, uyumsuzluk nedenleri, açıklama)`
 
 		const client = getGeminiClient()
-
-		console.log('[Gemini] Calling Gemini API for matching score...')
 
 		const result = await client.models.generateContent({
 			model: GEMINI_MODEL,
@@ -553,32 +485,35 @@ Scoring Guidelines:
 				temperature: 0.2,
 				topP: 0.8,
 				topK: 40,
-				maxOutputTokens: 2048
+				maxOutputTokens: 8192 // Increased significantly for gemini-2.x thinking tokens
 			}
 		})
 
+		// Check for MAX_TOKENS finish reason first
+		if (result.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+			console.error('[Gemini] ❌ ERROR: Response truncated due to MAX_TOKENS')
+			throw new Error('Response truncated - increase maxOutputTokens or simplify prompt')
+		}
+
 		// Extract text from response
 		let responseText
-		if (typeof result.text === 'function') {
-			responseText = result.text()
-		} else if (typeof result.text === 'string') {
+		if (result.text) {
 			responseText = result.text
 		} else if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
 			responseText = result.candidates[0].content.parts[0].text
 		}
 
 		if (!responseText) {
-			console.error('[Gemini] ❌ ERROR: No content in matching score response')
-			console.error('[Gemini] Response structure:', JSON.stringify(result, null, 2).substring(0, 1000))
+			console.error('[Gemini] ❌ No content in matching score response')
+			if (DEBUG_MODE) {
+				console.error('[Gemini] Response:', JSON.stringify(result, null, 2).substring(0, 1000))
+			}
 			throw new Error('No content in Gemini response')
 		}
 
-		console.log('[Gemini] Matching response text length:', responseText.length)
-
 		const scores = safeJSONParse(responseText)
 
-		console.log('[Gemini] ✓ Matching score calculated')
-		console.log('[Gemini] Overall Match:', scores.overall_match_score, '%')
+		console.log('[Gemini] ✓ Matching score calculated:', scores.overall_match_score + '%')
 
 		return {
 			overall_match_score: scores.overall_match_score || 0,
@@ -594,8 +529,9 @@ Scoring Guidelines:
 			explanation: scores.explanation || '',
 			gemini_model_version: GEMINI_MODEL
 		}
-	} catch (error: any) {
-		console.error('[Gemini] ✗ Error calculating matching score:', error)
-		throw new Error(`Gemini API error: ${error.message}`)
+	} catch (error: unknown) {
+		const err = error as { message: string }
+		console.error('[Gemini] ❌ Matching score error:', err.message)
+		throw new Error(`Gemini API error: ${err.message}`)
 	}
 }
