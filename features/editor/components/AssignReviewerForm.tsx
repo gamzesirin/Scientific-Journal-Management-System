@@ -56,6 +56,7 @@ export default function AssignReviewerForm({
 	const [message, setMessage] = useState('')
 	const [aiMatches, setAiMatches] = useState<ReviewerMatch[]>([])
 	const [showAiSuggestions, setShowAiSuggestions] = useState(true)
+	const [matchStats, setMatchStats] = useState<{ filtered_from: number; minimum_score: number } | null>(null)
 
 	// Filter out already assigned reviewers
 	const assignedReviewerIds = existingAssignments.map((a) => a.reviewer_id)
@@ -70,11 +71,21 @@ export default function AssignReviewerForm({
 				if (response.ok) {
 					const data = await response.json()
 					setAiMatches(data.matches || [])
+					// Save filter statistics if available
+					if (data.filtered_from && data.filter_criteria) {
+						setMatchStats({
+							filtered_from: data.filtered_from,
+							minimum_score: data.filter_criteria.minimum_score
+						})
+					}
 				} else {
-					console.warn('Could not fetch AI matches:', await response.text())
+					const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+					console.warn('Could not fetch AI matches:', errorData)
+					toast.error('AI Eşleştirme Hatası', errorData.details || errorData.error || 'Hakem eşleştirmesi yapılamadı')
 				}
 			} catch (error) {
 				console.error('Error fetching AI matches:', error)
+				toast.error('Bağlantı Hatası', 'Hakem eşleştirmesi için AI analizine ulaşılamadı')
 			} finally {
 				setLoadingMatches(false)
 			}
@@ -83,22 +94,22 @@ export default function AssignReviewerForm({
 		fetchMatches()
 	}, [paperId])
 
-	// Merge reviewer data with AI match scores
-	const reviewersWithScores = filteredReviewers.map((reviewer) => {
-		const match = aiMatches.find((m) => m.reviewer_id === reviewer.id)
-		return {
-			...reviewer,
-			aiMatch: match
-		}
-	}).sort((a, b) => {
-		// Sort by AI score if available, otherwise alphabetically
-		if (a.aiMatch && b.aiMatch) {
-			return b.aiMatch.overall_match_score - a.aiMatch.overall_match_score
-		}
-		if (a.aiMatch) return -1
-		if (b.aiMatch) return 1
-		return a.name.localeCompare(b.name)
-	})
+	// Only show reviewers with AI match scores (API already filtered for high scores)
+	// This ensures we only display reviewers with good or excellent match (60%+)
+	const reviewersWithScores = aiMatches
+		.map((match) => {
+			const reviewer = filteredReviewers.find((r) => r.id === match.reviewer_id)
+			if (!reviewer) return null
+			return {
+				...reviewer,
+				aiMatch: match
+			}
+		})
+		.filter((r) => r !== null) // Remove null entries
+		.sort((a, b) => {
+			// Sort by AI score descending (highest match first)
+			return (b?.aiMatch?.overall_match_score || 0) - (a?.aiMatch?.overall_match_score || 0)
+		}) as Array<Reviewer & { aiMatch: ReviewerMatch }>
 
 	const handleAddReviewer = (reviewerId: string) => {
 		if (!selectedReviewers.includes(reviewerId)) {
@@ -215,16 +226,23 @@ export default function AssignReviewerForm({
 								{aiMatches.length > 0 && (
 									<Badge variant="secondary" className="gap-1">
 										<Sparkles className="h-3 w-3" />
-										AI Önerileri Aktif
+										{aiMatches.length} Uygun Hakem
 									</Badge>
 								)}
 							</CardTitle>
 							<CardDescription>
 								{aiMatches.length > 0
-									? 'AI tarafından önerilen hakemler eşleşme skoruna göre sıralanmıştır'
-									: 'Makaleyi değerlendirecek hakemleri seçin'
+									? `AI tarafından %${matchStats?.minimum_score || 60}+ eşleşme skoruna sahip hakemler öneriliyor`
+									: loadingMatches
+									? 'Makale analiz ediliyor...'
+									: 'Bu makale için yeterli eşleşme skoru olan hakem bulunamadı'
 								}
 							</CardDescription>
+							{matchStats && matchStats.filtered_from > aiMatches.length && (
+								<p className="text-xs text-gray-500 mt-1">
+									{matchStats.filtered_from} hakem arasından {aiMatches.length} yüksek skorlu eşleşme bulundu
+								</p>
+							)}
 						</div>
 						{aiMatches.length > 0 && (
 							<Button
@@ -239,11 +257,12 @@ export default function AssignReviewerForm({
 				</CardHeader>
 				<CardContent className="space-y-4">
 					{loadingMatches && (
-						<div className="flex items-center justify-center py-8">
+						<div className="flex flex-col items-center justify-center py-8 space-y-2">
 							<div className="flex items-center gap-2 text-gray-600">
-								<Sparkles className="h-4 w-4 animate-pulse" />
-								<span>AI hakemlerinizi analiz ediyor...</span>
+								<Sparkles className="h-5 w-5 animate-pulse text-blue-500" />
+								<span className="font-medium">Makale analiz ediliyor...</span>
 							</div>
+							<p className="text-sm text-gray-500">AI hakemlerinizi makale ile eşleştiriyor</p>
 						</div>
 					)}
 
@@ -251,20 +270,30 @@ export default function AssignReviewerForm({
 					{!loadingMatches && (
 						<div>
 							<Label>
-								Uygun Hakemler
+								Önerilen Hakemler
 								{aiMatches.length > 0 && (
 									<span className="text-sm font-normal text-gray-500 ml-2">
-										(Eşleşme skoruna göre sıralı)
+										(%{matchStats?.minimum_score || 60}+ eşleşme skoru)
 									</span>
 								)}
 							</Label>
 							<div className="mt-2 space-y-2 max-h-96 overflow-y-auto border rounded-lg p-3">
 								{reviewersWithScores.length === 0 ? (
-									<p className="text-gray-500 text-center py-4">Uygun hakem bulunmamaktadır</p>
+									<div className="flex flex-col items-center justify-center py-8 space-y-3">
+										<AlertCircle className="h-12 w-12 text-amber-500" />
+										<div className="text-center">
+											<p className="font-medium text-gray-700">Yeterli Eşleşme Bulunamadı</p>
+											<p className="text-sm text-gray-500 mt-1">
+												Bu makale için %{matchStats?.minimum_score || 60} ve üzeri eşleşme skoruna sahip hakem bulunamadı.
+											</p>
+											<p className="text-xs text-gray-400 mt-2">
+												Hakem profillerinin AI analizi yapıldığından emin olun.
+											</p>
+										</div>
+									</div>
 								) : (
 									reviewersWithScores.map((reviewer) => {
 										const match = reviewer.aiMatch
-										const hasAiScore = !!match
 
 										return (
 											<div
@@ -273,12 +302,10 @@ export default function AssignReviewerForm({
 													'p-3 border rounded-lg cursor-pointer transition-all',
 													selectedReviewers.includes(reviewer.id)
 														? 'bg-blue-50 border-blue-300'
-														: hasAiScore
-															? match.recommendation_level === 'excellent'
-																? 'hover:bg-green-50 border-green-200'
-																: match.recommendation_level === 'good'
-																? 'hover:bg-blue-50 border-blue-200'
-																: 'hover:bg-gray-50'
+														: match.recommendation_level === 'excellent'
+															? 'hover:bg-green-50 border-green-200 bg-green-50/30'
+															: match.recommendation_level === 'good'
+															? 'hover:bg-blue-50 border-blue-200 bg-blue-50/30'
 															: 'hover:bg-gray-50'
 												)}
 												onClick={() => {
@@ -298,46 +325,37 @@ export default function AssignReviewerForm({
 																<span className="font-medium">{reviewer.name}</span>
 															</div>
 
-															{hasAiScore && (
-																<>
-																	{/* Match Score Badge */}
-																	<Badge
-																		variant={
-																			match.recommendation_level === 'excellent'
-																				? 'default'
-																				: match.recommendation_level === 'good'
-																				? 'secondary'
-																				: 'outline'
-																		}
-																		className={cn(
-																			'gap-1',
-																			match.recommendation_level === 'excellent' && 'bg-green-600',
-																			match.recommendation_level === 'good' && 'bg-blue-600 text-white'
-																		)}
-																	>
-																		<TrendingUp className="h-3 w-3" />
-																		{Math.round(match.overall_match_score)}% eşleşme
-																	</Badge>
+															{/* Match Score Badge */}
+															<Badge
+																variant={
+																	match.recommendation_level === 'excellent'
+																		? 'default'
+																		: match.recommendation_level === 'good'
+																		? 'secondary'
+																		: 'outline'
+																}
+																className={cn(
+																	'gap-1',
+																	match.recommendation_level === 'excellent' && 'bg-green-600',
+																	match.recommendation_level === 'good' && 'bg-blue-600 text-white'
+																)}
+															>
+																<TrendingUp className="h-3 w-3" />
+																{Math.round(match.overall_match_score)}% eşleşme
+															</Badge>
 
-																	{/* Recommendation Level Badge */}
-																	{match.recommendation_level === 'excellent' && (
-																		<Badge variant="outline" className="gap-1 border-green-600 text-green-700">
-																			<CheckCircle2 className="h-3 w-3" />
-																			Mükemmel Eşleşme
-																		</Badge>
-																	)}
-																	{match.recommendation_level === 'good' && (
-																		<Badge variant="outline" className="gap-1 border-blue-600 text-blue-700">
-																			<CheckCircle2 className="h-3 w-3" />
-																			İyi Eşleşme
-																		</Badge>
-																	)}
-																	{match.recommendation_level === 'moderate' && (
-																		<Badge variant="outline" className="text-yellow-700">
-																			Orta Eşleşme
-																		</Badge>
-																	)}
-																</>
+															{/* Recommendation Level Badge */}
+															{match.recommendation_level === 'excellent' && (
+																<Badge variant="outline" className="gap-1 border-green-600 text-green-700">
+																	<CheckCircle2 className="h-3 w-3" />
+																	Mükemmel Eşleşme
+																</Badge>
+															)}
+															{match.recommendation_level === 'good' && (
+																<Badge variant="outline" className="gap-1 border-blue-600 text-blue-700">
+																	<CheckCircle2 className="h-3 w-3" />
+																	İyi Eşleşme
+																</Badge>
 															)}
 														</div>
 
@@ -362,7 +380,7 @@ export default function AssignReviewerForm({
 														)}
 
 														{/* AI Match Details */}
-														{hasAiScore && showAiSuggestions && (
+														{showAiSuggestions && (
 															<div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200">
 																<div className="grid grid-cols-2 gap-2 text-xs">
 																	<div className="flex items-center gap-1">

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { analyzeArticleWithAI } from '@/lib/gemini';
-import { extractTextFromPDF, cleanPdfText, extractExcerpt, isPdfUrl } from '@/lib/pdf-utils';
 
 /**
  * POST /api/admin/analyze-article
@@ -66,26 +65,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Optionally extract excerpt from article PDF
-    let fullTextExcerpt: string | undefined;
-    if (article.file_url && isPdfUrl(article.file_url)) {
-      try {
-        console.log(`Extracting text from article PDF: ${article.file_url}`);
-        const pdfText = await extractTextFromPDF(article.file_url);
-        const cleanedText = cleanPdfText(pdfText);
-        fullTextExcerpt = extractExcerpt(cleanedText, 3000);
-      } catch (error) {
-        console.warn('Failed to extract PDF text, using title and abstract only:', error);
-        // Continue without full text - title and abstract are sufficient
-      }
-    }
-
-    // Analyze article with Gemini AI
+    // Analyze article with Gemini AI using only title and abstract
     console.log(`Analyzing article: ${article.title}`);
     const analysis = await analyzeArticleWithAI(
       article.title,
-      article.abstract,
-      fullTextExcerpt
+      article.abstract
     );
 
     // Store analysis in database
