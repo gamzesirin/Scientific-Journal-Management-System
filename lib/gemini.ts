@@ -69,13 +69,28 @@ function safeJSONParse(text: string): any {
  */
 export async function analyzeCVWithAI(cvText: string, cvUrl: string) {
 	console.log('[Gemini] Starting CV analysis...')
+	console.log('[Gemini] CV text length:', cvText.length, 'characters')
 
 	try {
+		// Use more of the CV text for better analysis (15000 chars instead of 8000)
+		// Take beginning, middle, and end sections for comprehensive coverage
+		const maxLength = 15000
+		let processedText = cvText
+
+		if (cvText.length > maxLength) {
+			const chunkSize = Math.floor(maxLength / 3)
+			const beginning = cvText.substring(0, chunkSize)
+			const middle = cvText.substring(Math.floor(cvText.length / 2) - Math.floor(chunkSize / 2), Math.floor(cvText.length / 2) + Math.floor(chunkSize / 2))
+			const end = cvText.substring(cvText.length - chunkSize)
+			processedText = `${beginning}\n...\n${middle}\n...\n${end}`
+			console.log('[Gemini] CV text truncated to', processedText.length, 'chars (beginning + middle + end)')
+		}
+
 		const prompt = `Sen akademik CV ve araştırma profillerini analiz etme konusunda uzmansın.
-Aşağıdaki CV metnini analiz et ve araştırmacının uzmanlığı hakkında yapılandırılmış bilgi çıkar.
+Aşağıdaki CV metnini DETAYLI bir şekilde analiz et ve araştırmacının uzmanlığı hakkında yapılandırılmış bilgi çıkar.
 
 CV Metni:
-${cvText.substring(0, 8000)}
+${processedText}
 
 Aşağıdaki yapıya sahip bir JSON nesnesi döndür (tüm metinler Türkçe olmalı):
 {
@@ -190,12 +205,27 @@ export async function analyzeArticleWithAI(title: string, abstract: string, full
 	console.log('[Gemini] Starting article analysis...')
 
 	try {
-		const text = `Title: ${title}\n\nAbstract: ${abstract}${fullTextExcerpt ? `\n\nExcerpt: ${fullTextExcerpt}` : ''}`
+		const text = `Title: ${title}\n\nAbstract: ${abstract}${fullTextExcerpt ? `\n\nFull Text Excerpt: ${fullTextExcerpt}` : ''}`
+		console.log('[Gemini] Article text length:', text.length, 'characters')
+
+		// Use more text for better analysis (12000 chars instead of 6000)
+		// Take beginning, middle, and end for comprehensive coverage
+		const maxLength = 12000
+		let processedText = text
+
+		if (text.length > maxLength) {
+			const chunkSize = Math.floor(maxLength / 3)
+			const beginning = text.substring(0, chunkSize)
+			const middle = text.substring(Math.floor(text.length / 2) - Math.floor(chunkSize / 2), Math.floor(text.length / 2) + Math.floor(chunkSize / 2))
+			const end = text.substring(text.length - chunkSize)
+			processedText = `${beginning}\n...\n${middle}\n...\n${end}`
+			console.log('[Gemini] Article text truncated to', processedText.length, 'chars (beginning + middle + end)')
+		}
 
 		const prompt = `Sen akademik araştırma makalelerini analiz etme konusunda uzmansın.
-Aşağıdaki makaleyi analiz et ve yapılandırılmış bilgi çıkar.
+Aşağıdaki makaleyi DETAYLI bir şekilde analiz et ve yapılandırılmış bilgi çıkar.
 
-${text.substring(0, 6000)}
+${processedText}
 
 Aşağıdaki yapıya sahip bir JSON nesnesi döndür (tüm metinler Türkçe olmalı):
 {
@@ -431,50 +461,121 @@ Yönergeler:
  */
 export async function calculateMatchingScore(reviewerProfile: any, articleAnalysis: any) {
 	console.log('[Gemini] Calculating matching score...')
+	console.log('[Gemini] Reviewer areas:', reviewerProfile.research_areas?.length || 0)
+	console.log('[Gemini] Article topics:', articleAnalysis.main_topics?.length || 0)
 
 	try {
-		const prompt = `Sen akademik hakemleri araştırma makalelerine eşleştirme konusunda uzmansın.
+		const prompt = `Sen akademik hakemleri araştırma makalelerine eşleştirme konusunda UZMAN bir AI sistemsin.
+PDF'lerden çıkarılan tam text'ler analiz edilerek elde edilen aşağıdaki profilleri DETAYLI şekilde karşılaştır.
 
-Hakem Profili:
-- Araştırma Alanları: ${JSON.stringify(reviewerProfile.research_areas)}
-- Anahtar Kelimeler: ${JSON.stringify(reviewerProfile.keywords)}
-- Yayınlar: ${reviewerProfile.publications_count}
-- H-Endeksi: ${reviewerProfile.h_index}
-- Deneyim: ${reviewerProfile.years_of_experience} yıl
+=== HAKEM PROFİLİ (PDF CV'den Çıkarıldı) ===
+İsim: ${reviewerProfile.users?.name || 'Bilinmiyor'}
+Kurum: ${reviewerProfile.users?.affiliation || 'Belirtilmemiş'}
 
-Makale Analizi:
-- Ana Konular: ${JSON.stringify(articleAnalysis.main_topics)}
-- Anahtar Kelimeler: ${JSON.stringify(articleAnalysis.keywords)}
-- Alan: ${articleAnalysis.research_domain}
+Araştırma Alanları ve Ağırlıkları:
+${JSON.stringify(reviewerProfile.research_areas, null, 2)}
 
-Eşleşme skorlarını hesapla ve JSON döndür (tüm metinler Türkçe olmalı):
+Uzmanlık Anahtar Kelimeleri:
+${JSON.stringify(reviewerProfile.keywords, null, 2)}
+
+Teknik Beceriler: ${JSON.stringify(reviewerProfile.technical_skills)}
+Metodolojiler: ${JSON.stringify(reviewerProfile.methodologies)}
+Araştırma Alanları: ${JSON.stringify(reviewerProfile.domains)}
+
+Akademik Başarılar:
+- Yayın Sayısı: ${reviewerProfile.publications_count || 0}
+- H-Endeksi: ${reviewerProfile.h_index || 0}
+- Deneyim: ${reviewerProfile.years_of_experience || 0} yıl
+- Uzmanlık Skoru: ${reviewerProfile.expertise_score || 0}/100
+
+CV Özeti: ${reviewerProfile.cv_analysis_summary || 'Yok'}
+
+=== MAKALE ANALİZİ (PDF'den Çıkarıldı) ===
+Ana Konular ve İlişki Skorları:
+${JSON.stringify(articleAnalysis.main_topics, null, 2)}
+
+Makale Anahtar Kelimeleri:
+${JSON.stringify(articleAnalysis.keywords, null, 2)}
+
+Metodoloji: ${articleAnalysis.methodology || 'Belirtilmemiş'}
+Araştırma Alanı: ${articleAnalysis.research_domain || 'Genel'}
+Karmaşıklık Seviyesi: ${articleAnalysis.complexity_level || 'Orta'}
+
+Makale Özeti: ${articleAnalysis.analysis_summary || 'Yok'}
+
+=== DETAYLI EŞLEŞTİRME ANALİZİ ===
+Aşağıdaki JSON formatında KAPSAMLI bir eşleştirme analizi yap:
+
 {
   "overall_match_score": 85,
   "topic_similarity_score": 90,
   "keyword_overlap_score": 80,
   "methodology_match_score": 85,
   "domain_expertise_score": 95,
-  "matching_keywords": ["makine öğrenmesi", "derin öğrenme"],
-  "matching_topics": ["Yapay Zeka", "Sinir Ağları"],
-  "mismatch_reasons": ["Daha fazla biyoloji uzmanlığı gerektirir"],
-  "recommendation_level": "mükemmel",
+  "experience_relevance_score": 88,
+  "matching_keywords": ["derin öğrenme", "sinir ağları"],
+  "matching_topics": ["Yapay Zeka", "Makine Öğrenmesi"],
+  "matching_methodologies": ["deneysel çalışma"],
+  "mismatch_reasons": ["Makale biyoloji ağırlıklı, hakem bilgisayar bilimleri"],
+  "strength_areas": ["Hakem bu konuda 5+ yayına sahip", "H-index yüksek"],
+  "recommendation_level": "excellent",
   "confidence_score": 85,
-  "explanation": "Kısa tek satırlık açıklama (Türkçe)"
+  "detailed_explanation": "Hakem, makalenin ana konuları ile %90 oranında örtüşen uzmanlığa sahip."
 }
 
 ÖNEMLİ JSON KURALLARI:
 - String'ler için çift tırnak kullan
 - Tüm metinleri kısa ve tek satırda tut
-- String değerlerinin içinde satır sonu olmasın
-- SADECE geçerli JSON döndür, markdown kullanma
+- SADECE geçerli JSON döndür
 
-Skorlama Yönergeleri:
-- Tüm skorlar 0-100 arasında
-- overall_match_score ağırlıklı ortalama
-- Konu örtüşmesi, anahtar kelime eşleşmelerini göz önünde bulundur
-- recommendation_level: mükemmel (80+), iyi (60-79), orta (40-59), düşük (<40)
-- confidence_score veri kalitesine göre
-- TÜM METİNLER TÜRKÇE OLMALI (eşleşen anahtar kelimeler, konular, uyumsuzluk nedenleri, açıklama)`
+=== DETAYLI SKORLAMA YÖNERGELERİ ===
+
+1. TOPIC SIMILARITY (Konu Benzerliği) - Ağırlık: %35
+   - Hakem araştırma alanları ile makale konularını karşılaştır
+   - Ağırlıklı skorları kullan (weight ve relevance değerleri)
+   - Direkt eşleşme: +20 puan
+   - Yakın alan eşleşmesi: +10 puan
+   - Alt alan eşleşmesi: +5 puan
+
+2. KEYWORD OVERLAP (Anahtar Kelime Örtüşmesi) - Ağırlık: %25
+   - Ortak anahtar kelimeleri say
+   - %50+ örtüşme: 90+ puan
+   - %30-50 örtüşme: 70-89 puan
+   - %10-30 örtüşme: 40-69 puan
+   - <%10 örtüşme: <40 puan
+
+3. METHODOLOGY MATCH (Metodoloji Uyumu) - Ağırlık: %15
+   - Hakem metodolojileri ile makale metodolojisini karşılaştır
+   - Tam eşleşme: 100 puan
+   - Benzer metodoloji: 70 puan
+   - Farklı ama ilgili: 40 puan
+
+4. DOMAIN EXPERTISE (Alan Uzmanlığı) - Ağırlık: %15
+   - Hakem araştırma alanları ile makale alanını karşılaştır
+   - Aynı alan: 100 puan
+   - İlgili alan: 70 puan
+   - Uzak alan: 30 puan
+
+5. EXPERIENCE RELEVANCE (Deneyim Uygunluğu) - Ağırlık: %10
+   - H-index, yayın sayısı, deneyim yılı değerlendir
+   - Karmaşık makale = yüksek H-index gerekli
+   - Basit makale = orta deneyim yeterli
+
+OVERALL SCORE = (topic * 0.35) + (keyword * 0.25) + (methodology * 0.15) + (domain * 0.15) + (experience * 0.10)
+
+recommendation_level belirlemesi:
+- "excellent" (mükemmel): 80+ puan, güçlü örtüşme, ideal hakem
+- "good" (iyi): 60-79 puan, yeterli uzmanlık, uygun hakem
+- "moderate" (orta): 40-59 puan, kısmi uzmanlık, alternatif
+- "low" (düşük): <40 puan, zayıf eşleşme, uygun değil
+
+confidence_score (güven skoru):
+- Veri kalitesi, profil detayı, eşleşme netliği değerlendir
+- Tam veri: 85+ puan
+- Kısmi veri: 60-84 puan
+- Zayıf veri: <60 puan
+
+TÜM ÇIKTILAR TÜRKÇE OLMALI!`
 
 		const client = getGeminiClient()
 
@@ -513,7 +614,14 @@ Skorlama Yönergeleri:
 
 		const scores = safeJSONParse(responseText)
 
-		console.log('[Gemini] ✓ Matching score calculated:', scores.overall_match_score + '%')
+		console.log('[Gemini] ✓ Matching score calculated:', scores.overall_match_score + '%', `(${scores.recommendation_level})`)
+		console.log('[Gemini]   - Topic Similarity:', scores.topic_similarity_score + '%')
+		console.log('[Gemini]   - Keyword Overlap:', scores.keyword_overlap_score + '%')
+		console.log('[Gemini]   - Methodology Match:', scores.methodology_match_score + '%')
+		console.log('[Gemini]   - Domain Expertise:', scores.domain_expertise_score + '%')
+		console.log('[Gemini]   - Experience Relevance:', scores.experience_relevance_score + '%')
+		console.log('[Gemini]   - Matching Keywords:', scores.matching_keywords?.length || 0)
+		console.log('[Gemini]   - Matching Topics:', scores.matching_topics?.length || 0)
 
 		return {
 			overall_match_score: scores.overall_match_score || 0,
@@ -521,12 +629,15 @@ Skorlama Yönergeleri:
 			keyword_overlap_score: scores.keyword_overlap_score || 0,
 			methodology_match_score: scores.methodology_match_score || 0,
 			domain_expertise_score: scores.domain_expertise_score || 0,
+			experience_relevance_score: scores.experience_relevance_score || 0,
 			matching_keywords: scores.matching_keywords || [],
 			matching_topics: scores.matching_topics || [],
+			matching_methodologies: scores.matching_methodologies || [],
 			mismatch_reasons: scores.mismatch_reasons || [],
+			strength_areas: scores.strength_areas || [],
 			recommendation_level: scores.recommendation_level || 'moderate',
 			confidence_score: scores.confidence_score || 0,
-			explanation: scores.explanation || '',
+			explanation: scores.detailed_explanation || scores.explanation || '',
 			gemini_model_version: GEMINI_MODEL
 		}
 	} catch (error: unknown) {
