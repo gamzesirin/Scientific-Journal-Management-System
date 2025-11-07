@@ -65,11 +65,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Analyze article with Gemini AI using only title and abstract
-    console.log(`Analyzing article: ${article.title}`);
+    // Extract text from PDF if available
+    let fullTextExcerpt = '';
+    let fullPdfText = '';
+    if (article.file_url && article.file_url.toLowerCase().endsWith('.pdf')) {
+      try {
+        console.log('[Article Analysis] Extracting text from PDF:', article.file_url);
+        const { extractAndCleanPDFText } = await import('@/lib/simple-pdf-extract');
+
+        const pdfText = await extractAndCleanPDFText(article.file_url);
+        fullPdfText = pdfText;
+
+        // Use much more text for AI analysis (up to 10000 chars instead of 4000)
+        // This allows better understanding of the article content
+        fullTextExcerpt = pdfText.substring(0, 10000);
+
+        console.log('[Article Analysis] PDF text extracted, length:', pdfText.length);
+        console.log('[Article Analysis] Using excerpt length for AI:', fullTextExcerpt.length);
+
+        // Log extracted PDF text to console
+        console.log('==================================================');
+        console.log('[Article Analysis] EXTRACTED PDF TEXT:');
+        console.log('==================================================');
+        console.log(pdfText.substring(0, 2000)); // First 2000 characters
+        if (pdfText.length > 2000) {
+          console.log('...');
+          console.log('[MIDDLE SECTION]');
+          console.log(pdfText.substring(Math.floor(pdfText.length / 2), Math.floor(pdfText.length / 2) + 1000));
+          console.log('...');
+          console.log('[END SECTION]');
+          console.log(pdfText.substring(pdfText.length - 1000));
+          console.log('... (total length:', pdfText.length, 'chars)');
+        }
+        console.log('==================================================');
+      } catch (pdfError) {
+        console.warn('[Article Analysis] Failed to extract PDF text:', pdfError);
+        console.log('[Article Analysis] Continuing with title and abstract only');
+        // Continue without PDF text - not critical
+      }
+    }
+
+    // Analyze article with Gemini AI using title, abstract, and optionally PDF excerpt
+    console.log(`[Article Analysis] Analyzing article: ${article.title}`);
     const analysis = await analyzeArticleWithAI(
       article.title,
-      article.abstract
+      article.abstract,
+      fullTextExcerpt
     );
 
     // Store analysis in database
@@ -116,6 +157,11 @@ export async function POST(request: NextRequest) {
         summary: articleAnalysis.analysis_summary,
         last_analysis_date: articleAnalysis.last_analysis_date,
       },
+      extracted_pdf_text: fullPdfText ? {
+        full_length: fullPdfText.length,
+        excerpt_used_for_analysis: fullTextExcerpt,
+        full_text: fullPdfText
+      } : null,
     });
   } catch (error) {
     console.error('Error analyzing article:', error);
