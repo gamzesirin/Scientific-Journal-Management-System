@@ -170,6 +170,7 @@ export async function POST(request: NextRequest) {
 
     // Analyze CV with Gemini AI
     console.log('[CV Processing] Starting AI analysis for user:', reviewer.name);
+    console.log('[CV Processing] CV text length:', cleanedText.length, 'characters');
     const analysis = await analyzeCVWithAI(cleanedText, reviewer.cv_file_url);
     console.log('[CV Processing] ✓ AI analysis completed successfully');
 

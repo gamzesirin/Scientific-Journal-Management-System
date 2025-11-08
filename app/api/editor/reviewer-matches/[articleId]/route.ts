@@ -62,6 +62,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .eq('article_id', articleId)
       .single();
 
+    // Store extracted PDF text for response (function scope)
+    let extractedPdfText = '';
+
     // Check if we need to re-analyze (analysis is older than 30 days)
     const shouldReanalyze = !articleAnalysis ||
       new Date(articleAnalysis.created_at).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -70,10 +73,50 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       console.log(articleAnalysis ? 'Re-analyzing article...' : 'Article not analyzed yet, analyzing now...');
 
       try {
-        // Analyze the article using title and abstract
+        // Extract text from PDF if available
+        let fullTextExcerpt = '';
+        if (article.file_url && article.file_url.toLowerCase().endsWith('.pdf')) {
+          try {
+            console.log('[Reviewer Matches] Extracting text from PDF:', article.file_url);
+            const { extractAndCleanPDFText } = await import('@/lib/simple-pdf-extract');
+
+            const pdfText = await extractAndCleanPDFText(article.file_url);
+            extractedPdfText = pdfText;
+
+            // Use much more text for better AI matching (up to 10000 chars instead of 4000)
+            // This improves matching accuracy by providing more context to the AI
+            fullTextExcerpt = pdfText.substring(0, 10000);
+
+            console.log('[Reviewer Matches] PDF text extracted, length:', pdfText.length);
+            console.log('[Reviewer Matches] Using excerpt length for AI matching:', fullTextExcerpt.length);
+
+            // Log extracted PDF text to console
+            console.log('==================================================');
+            console.log('[Reviewer Matches] EXTRACTED PDF TEXT:');
+            console.log('==================================================');
+            console.log(pdfText.substring(0, 2000)); // First 2000 characters
+            if (pdfText.length > 2000) {
+              console.log('...');
+              console.log('[MIDDLE SECTION]');
+              console.log(pdfText.substring(Math.floor(pdfText.length / 2), Math.floor(pdfText.length / 2) + 1000));
+              console.log('...');
+              console.log('[END SECTION]');
+              console.log(pdfText.substring(pdfText.length - 1000));
+              console.log('... (total length:', pdfText.length, 'chars)');
+            }
+            console.log('==================================================');
+          } catch (pdfError) {
+            console.warn('[Reviewer Matches] Failed to extract PDF text:', pdfError);
+            console.log('[Reviewer Matches] Continuing with title and abstract only');
+            // Continue without PDF text - not critical
+          }
+        }
+
+        // Analyze the article using title, abstract, and optionally PDF excerpt
         const analysis = await analyzeArticleWithAI(
           article.title,
-          article.abstract
+          article.abstract,
+          fullTextExcerpt
         );
 
         const { data: newAnalysis, error: upsertError } = await supabase
@@ -347,6 +390,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         methodology: articleAnalysis.methodology,
         domain: articleAnalysis.research_domain,
       },
+      extracted_pdf_text: extractedPdfText ? {
+        full_length: extractedPdfText.length,
+        excerpt_used_for_analysis: extractedPdfText.substring(0, 4000),
+        full_text: extractedPdfText
+      } : null,
       matches: filteredMatches,
       total_reviewers: filteredMatches.length,
       filtered_from: matches.length, // Total reviewers checked
