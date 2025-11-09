@@ -25,7 +25,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '@/components/ui/alert-dialog'
-import { Eye, Trash2, Search, Edit, XCircle, UserCog, Sparkles } from 'lucide-react'
+import { Eye, Trash2, Search, Edit, XCircle, UserCog, Sparkles, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -64,6 +64,7 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 	const [editors, setEditors] = useState<Editor[]>([])
 	const [editorNames, setEditorNames] = useState<Map<string, string>>(new Map())
 	const [isSubmitting, setIsSubmitting] = useState(false)
+	const [analyzingArticles, setAnalyzingArticles] = useState<Record<string, boolean>>({})
 
 	// Editörleri ve atanmış editör isimlerini yükle
 	useEffect(() => {
@@ -234,6 +235,53 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 		}
 	}
 
+	const handleAnalyzeArticle = async (article: AdminArticle) => {
+		setAnalyzingArticles((prev) => ({ ...prev, [article.id]: true }))
+
+		try {
+			const response = await fetch('/api/admin/analyze-article', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ articleId: article.id })
+			})
+
+			if (!response.ok) {
+				const error = await response.json()
+				throw new Error(error.error || 'Analiz başarısız')
+			}
+
+			const data = await response.json()
+
+			// Show extracted text in console
+			if (data.extracted_pdf_text) {
+				console.log('==================================================')
+				console.log('✅ MAKALE PDF TEXT ÇIKARILDI:')
+				console.log('==================================================')
+				console.log('Makale:', article.title)
+				console.log('Text uzunluğu:', data.extracted_pdf_text.full_length, 'karakter')
+				console.log('==================================================')
+				console.log(data.extracted_pdf_text.full_text)
+				console.log('==================================================')
+
+				toast.success(
+					'Analiz Tamamlandı',
+					`PDF'den ${data.extracted_pdf_text.full_length} karakter çıkarıldı. Console'u kontrol edin!`
+				)
+			} else {
+				toast.success('Analiz Tamamlandı', 'Makale başarıyla analiz edildi (PDF yok)')
+			}
+
+			router.refresh()
+		} catch (error) {
+			console.error('Error analyzing article:', error)
+			toast.error(error instanceof Error ? error.message : 'Makale analiz edilirken bir hata oluştu')
+		} finally {
+			setAnalyzingArticles((prev) => ({ ...prev, [article.id]: false }))
+		}
+	}
+
 	const getStatusBadgeVariant = (status: string) => {
 		switch (status) {
 			case 'submitted':
@@ -334,6 +382,28 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 												<Eye className="h-4 w-4" />
 											</Button>
 										</Link>
+										{article.file_url && (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => handleAnalyzeArticle(article)}
+												disabled={analyzingArticles[article.id]}
+												title="PDF'den Text Çıkar ve Analiz Et"
+												className="bg-blue-50 hover:bg-blue-100 border-blue-300"
+											>
+												{analyzingArticles[article.id] ? (
+													<>
+														<Loader2 className="h-4 w-4 mr-1 animate-spin" />
+														Analiz
+													</>
+												) : (
+													<>
+														<FileText className="h-4 w-4 mr-1" />
+														PDF Analiz
+													</>
+												)}
+											</Button>
+										)}
 										{article.status === 'accepted' && (
 											<Button
 												variant="default"
