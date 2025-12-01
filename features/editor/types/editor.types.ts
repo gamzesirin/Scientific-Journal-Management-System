@@ -52,6 +52,8 @@ export interface Review {
 	recommendation: 'accept' | 'minor_revision' | 'major_revision' | 'reject'
 	comments: string
 	status: 'draft' | 'submitted'
+	created_at: string
+	updated_at: string
 	submitted_at?: string
 	reviewer?: Reviewer
 }

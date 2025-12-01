@@ -53,7 +53,8 @@ export default function EditorDashboard({ userData, allPapers }: EditorDashboard
 						affiliation: article.author.affiliation
 				  }
 				: undefined,
-			assignments: (article as any).assignments || []
+			assignments: (article as any).assignments || [],
+			reviews: (article as any).reviews || []
 		})) || []
 
 	// Filter papers by status

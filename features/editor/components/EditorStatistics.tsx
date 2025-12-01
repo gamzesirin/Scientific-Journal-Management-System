@@ -14,7 +14,8 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 		if (stats) return stats
 
 		const totalPapers = papers.length
-		const pendingReview = papers.filter(p => p.status === 'submitted').length
+		// Include both 'submitted' and 'resubmitted' as pending review
+		const pendingReview = papers.filter(p => p.status === 'submitted' || p.status === 'resubmitted').length
 		const underReview = papers.filter(p => p.status === 'under_review').length
 		const revisionRequested = papers.filter(p => p.status === 'revision_requested').length
 		const reviewed = papers.filter(p =>
@@ -24,23 +25,23 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 		const rejected = papers.filter(p => p.status === 'rejected').length
 		const published = papers.filter(p => p.status === 'published').length
 
-		// Get unique active reviewers
+		// Get unique reviewers (all reviewers who have assignments)
 		const activeReviewers = new Set(
 			papers.flatMap(p =>
-				p.assignments?.filter(a => a.status !== 'completed')
-					.map(a => a.reviewer_id) || []
+				p.assignments?.map(a => a.reviewer_id) || []
 			)
 		).size
 
 		// Calculate average review time (in days)
 		const reviewTimes = papers
-			.filter(p => p.reviews?.some(r => r.submitted_at))
-			.map(p => {
-				const review = p.reviews?.find(r => r.submitted_at)
-				if (!review) return 0
-				const submitted = new Date(p.submitted_at)
-				const reviewed = new Date(review.submitted_at!)
-				return (reviewed.getTime() - submitted.getTime()) / (1000 * 60 * 60 * 24)
+			.flatMap(p => p.reviews || [])
+			.filter(r => r.status === 'submitted')
+			.map(r => {
+				const reviewDate = r.submitted_at || r.updated_at
+				if (!reviewDate || !r.created_at) return 0
+				const created = new Date(r.created_at)
+				const completed = new Date(reviewDate)
+				return (completed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
 			})
 			.filter(time => time > 0)
 
@@ -69,8 +70,11 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 		? Math.round((currentStats.accepted / currentStats.totalPapers) * 100)
 		: 0
 
-	const reviewCompletionRate = currentStats.underReview > 0
-		? Math.round((currentStats.reviewed / currentStats.underReview) * 100)
+	// Calculate review completion rate based on assignments
+	const totalAssignments = papers.flatMap(p => p.assignments || []).length
+	const completedAssignments = papers.flatMap(p => p.assignments || []).filter(a => a.status === 'completed').length
+	const reviewCompletionRate = totalAssignments > 0
+		? Math.round((completedAssignments / totalAssignments) * 100)
 		: 0
 
 	// Get recent activity
@@ -154,12 +158,12 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 						<div className="space-y-3">
 							<div>
 								<div className="flex justify-between items-center mb-1">
-									<span className="text-sm font-medium">Gönderildi</span>
+									<span className="text-sm font-medium">Bekleyen (Yeni/Revize)</span>
 									<Badge variant="secondary">{currentStats.pendingReview}</Badge>
 								</div>
 								<div className="h-2 bg-gray-200 rounded-full overflow-hidden">
 									<div
-										className="h-full bg-gray-500"
+										className="h-full bg-blue-500"
 										style={{
 											width: `${currentStats.totalPapers > 0
 												? (currentStats.pendingReview / currentStats.totalPapers) * 100
@@ -270,17 +274,6 @@ export default function EditorStatistics({ papers, stats }: EditorStatisticsProp
 					</CardHeader>
 					<CardContent>
 						<div className="space-y-4">
-							<div className="flex justify-between items-center pb-3 border-b">
-								<div>
-									<p className="text-sm font-medium">Ortalama İnceleme Süresi</p>
-									<p className="text-xs text-gray-500">Makale başına</p>
-								</div>
-								<div className="text-right">
-									<p className="text-2xl font-bold">{currentStats.averageReviewTime}</p>
-									<p className="text-xs text-gray-500">gün</p>
-								</div>
-							</div>
-
 							<div className="flex justify-between items-center pb-3 border-b">
 								<div>
 									<p className="text-sm font-medium">Aktif Hakemler</p>
