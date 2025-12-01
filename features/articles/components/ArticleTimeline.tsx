@@ -315,30 +315,6 @@ export default function ArticleTimeline({ articleId, showFullDetails = false }: 
 													</span>
 												</div>
 
-												{/* Changed Fields (if showFullDetails) */}
-												{showFullDetails && entry.changed_fields && Object.keys(entry.changed_fields).length > 0 && (
-													<details className="text-sm">
-														<summary className="cursor-pointer text-blue-600 hover:text-blue-800">
-															Detayları Göster
-														</summary>
-														<div className="mt-2 p-3 bg-gray-50 rounded-lg space-y-1">
-															<p className="font-medium text-gray-700">Değişen Alanlar:</p>
-															<ul className="list-disc list-inside text-gray-600">
-																{Object.keys(entry.changed_fields).map((field) => (
-																	<li key={field}>
-																		{field}
-																		{entry.previous_values?.[field] && (
-																			<span className="text-xs text-gray-500">
-																				{' '}
-																				(Önceki: {JSON.stringify(entry.previous_values[field])})
-																			</span>
-																		)}
-																	</li>
-																))}
-															</ul>
-														</div>
-													</details>
-												)}
 
 												{/* Assignment Info */}
 												{entry.assigned_editor_id && entry.action === 'STATUS_CHANGE' && entry.status === 'under_review' && (
