@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Calendar } from '@/components/ui/calendar'
@@ -15,9 +14,10 @@ import { format, addDays } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { CalendarIcon, User, Mail, Award, Clock, Sparkles, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { Reviewer, AssignmentFormData } from '../types/editor.types'
+import { Reviewer } from '../types/editor.types'
 import { toast } from '@/lib/toast'
 
+// Types
 interface ReviewerMatch {
 	reviewer_id: string
 	reviewer_name: string
@@ -42,6 +42,214 @@ interface AssignReviewerFormProps {
 	availableReviewers: Reviewer[]
 }
 
+type ReviewerWithMatch = Reviewer & { aiMatch: ReviewerMatch }
+
+// Score Indicator Component
+function ScoreIndicator({ label, score }: { label: string; score: number }) {
+	const getColor = (value: number) => {
+		if (value > 70) return '#10b981'
+		if (value > 40) return '#f59e0b'
+		return '#ef4444'
+	}
+
+	return (
+		<div className="flex items-center gap-1">
+			<div
+				className="h-2 w-2 rounded-full"
+				style={{ backgroundColor: getColor(score) }}
+			/>
+			<span className="text-gray-600">{label}:</span>
+			<span className="ml-1 font-medium">{Math.round(score)}%</span>
+		</div>
+	)
+}
+
+// Confidence Bar Component
+function ConfidenceBar({ score }: { score: number }) {
+	const getColor = (value: number) => {
+		if (value > 70) return '#10b981'
+		if (value > 40) return '#f59e0b'
+		return '#ef4444'
+	}
+
+	return (
+		<div className="mt-2 flex items-center gap-2">
+			<span className="text-xs text-gray-600">Güvenilirlik:</span>
+			<div className="flex-1 bg-gray-200 rounded-full h-2">
+				<div
+					className="h-2 rounded-full transition-all"
+					style={{ width: `${score}%`, backgroundColor: getColor(score) }}
+				/>
+			</div>
+			<span className="text-xs font-medium">{Math.round(score)}%</span>
+		</div>
+	)
+}
+
+// Match Details Component
+function MatchDetails({ match }: { match: ReviewerMatch }) {
+	return (
+		<div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200">
+			<div className="grid grid-cols-2 gap-2 text-xs">
+				<ScoreIndicator label="Konu Benzerliği" score={match.topic_similarity_score} />
+				<ScoreIndicator label="Anahtar Kelime" score={match.keyword_overlap_score} />
+				<ScoreIndicator label="Metodoloji" score={match.methodology_match_score} />
+				<ScoreIndicator label="Alan Uzmanlığı" score={match.domain_expertise_score} />
+			</div>
+
+			{match.confidence_score && <ConfidenceBar score={match.confidence_score} />}
+
+			{match.matching_keywords?.length > 0 && (
+				<div className="mt-2">
+					<span className="text-xs text-gray-600">Eşleşen Terimler:</span>
+					<div className="flex flex-wrap gap-1 mt-1">
+						{match.matching_keywords.slice(0, 5).map((keyword, idx) => (
+							<Badge key={idx} variant="secondary" className="text-xs">{keyword}</Badge>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
+// Recommendation Badge Component
+function RecommendationBadge({ level }: { level: string }) {
+	if (level === 'excellent') {
+		return (
+			<Badge variant="outline" className="gap-1 border-green-600 text-green-700">
+				<CheckCircle2 className="h-3 w-3" />
+				Mükemmel Eşleşme
+			</Badge>
+		)
+	}
+	if (level === 'good') {
+		return (
+			<Badge variant="outline" className="gap-1 border-blue-600 text-blue-700">
+				<CheckCircle2 className="h-3 w-3" />
+				İyi Eşleşme
+			</Badge>
+		)
+	}
+	return null
+}
+
+// Reviewer Card Component
+interface ReviewerCardProps {
+	reviewer: ReviewerWithMatch
+	isSelected: boolean
+	showDetails: boolean
+	onToggle: () => void
+}
+
+function ReviewerCard({ reviewer, isSelected, showDetails, onToggle }: ReviewerCardProps) {
+	const match = reviewer.aiMatch
+
+	const cardClassName = cn(
+		'p-3 border rounded-lg cursor-pointer transition-all',
+		isSelected
+			? 'bg-blue-50 border-blue-300'
+			: match.recommendation_level === 'excellent'
+				? 'hover:bg-green-50 border-green-200 bg-green-50/30'
+				: match.recommendation_level === 'good'
+					? 'hover:bg-blue-50 border-blue-200 bg-blue-50/30'
+					: 'hover:bg-gray-50'
+	)
+
+	return (
+		<div className={cardClassName} onClick={onToggle}>
+			<div className="flex items-start justify-between gap-4">
+				<div className="flex-1 min-w-0">
+					{/* Reviewer Name and Score Badge */}
+					<div className="flex items-center gap-2 flex-wrap">
+						<div className="flex items-center gap-2">
+							<User className="h-4 w-4 flex-shrink-0" />
+							<span className="font-medium">{reviewer.name}</span>
+						</div>
+
+						<Badge
+							variant={match.recommendation_level === 'excellent' ? 'default' : match.recommendation_level === 'good' ? 'secondary' : 'outline'}
+							className={cn(
+								'gap-1',
+								match.recommendation_level === 'excellent' && 'bg-green-600',
+								match.recommendation_level === 'good' && 'bg-blue-600 text-white'
+							)}
+						>
+							<TrendingUp className="h-3 w-3" />
+							{Math.round(match.overall_match_score)}% eşleşme
+						</Badge>
+
+						<RecommendationBadge level={match.recommendation_level} />
+					</div>
+
+					{/* Email */}
+					<div className="flex items-center gap-2 mt-1">
+						<Mail className="h-3 w-3" />
+						<span className="text-sm text-gray-600 truncate">{reviewer.email}</span>
+					</div>
+
+					{/* Expertise Areas */}
+					{reviewer.expertise_areas && reviewer.expertise_areas.length > 0 && (
+						<div className="flex items-start gap-2 mt-2">
+							<Award className="h-3 w-3 mt-1 flex-shrink-0" />
+							<div className="flex flex-wrap gap-1">
+								{reviewer.expertise_areas.map((area, index) => (
+									<Badge key={index} variant="outline" className="text-xs">{area}</Badge>
+								))}
+							</div>
+						</div>
+					)}
+
+					{showDetails && <MatchDetails match={match} />}
+				</div>
+
+				<Button
+					size="sm"
+					variant={isSelected ? 'default' : 'outline'}
+					onClick={(e) => {
+						e.stopPropagation()
+						onToggle()
+					}}
+				>
+					{isSelected ? 'Seçildi' : 'Seç'}
+				</Button>
+			</div>
+		</div>
+	)
+}
+
+// Empty State Component
+function EmptyReviewersState({ minimumScore }: { minimumScore: number }) {
+	return (
+		<div className="flex flex-col items-center justify-center py-8 space-y-3">
+			<AlertCircle className="h-12 w-12 text-amber-500" />
+			<div className="text-center">
+				<p className="font-medium text-gray-700">Yeterli Eşleşme Bulunamadı</p>
+				<p className="text-sm text-gray-500 mt-1">
+					Bu makale için %{minimumScore} ve üzeri eşleşme skoruna sahip hakem bulunamadı.
+				</p>
+				<p className="text-xs text-gray-400 mt-2">
+					Hakem profillerinin AI analizi yapıldığından emin olun.
+				</p>
+			</div>
+		</div>
+	)
+}
+
+// Loading State Component
+function LoadingState() {
+	return (
+		<div className="flex flex-col items-center justify-center py-8 space-y-2">
+			<div className="flex items-center gap-2 text-gray-600">
+				<Sparkles className="h-5 w-5 animate-pulse text-blue-500" />
+				<span className="font-medium">Makale analiz ediliyor...</span>
+			</div>
+			<p className="text-sm text-gray-500">AI hakemlerinizi makale ile eşleştiriyor</p>
+		</div>
+	)
+}
+
+// Main Component
 export default function AssignReviewerForm({
 	paperId,
 	paperTitle,
@@ -58,11 +266,10 @@ export default function AssignReviewerForm({
 	const [showAiSuggestions, setShowAiSuggestions] = useState(true)
 	const [matchStats, setMatchStats] = useState<{ filtered_from: number; minimum_score: number } | null>(null)
 
-	// Filter out already assigned reviewers
 	const assignedReviewerIds = existingAssignments.map((a) => a.reviewer_id)
 	const filteredReviewers = availableReviewers.filter((r) => !assignedReviewerIds.includes(r.id))
 
-	// Fetch AI matching scores on component mount
+	// Fetch AI matches
 	useEffect(() => {
 		const fetchMatches = async () => {
 			setLoadingMatches(true)
@@ -71,7 +278,6 @@ export default function AssignReviewerForm({
 				if (response.ok) {
 					const data = await response.json()
 					setAiMatches(data.matches || [])
-					// Save filter statistics if available
 					if (data.filtered_from && data.filter_criteria) {
 						setMatchStats({
 							filtered_from: data.filtered_from,
@@ -94,32 +300,22 @@ export default function AssignReviewerForm({
 		fetchMatches()
 	}, [paperId])
 
-	// Only show reviewers with AI match scores (API already filtered for high scores)
-	// This ensures we only display reviewers with good or excellent match (60%+)
+	// Build reviewers with scores list
 	const reviewersWithScores = aiMatches
 		.map((match) => {
 			const reviewer = filteredReviewers.find((r) => r.id === match.reviewer_id)
-			if (!reviewer) return null
-			return {
-				...reviewer,
-				aiMatch: match
-			}
+			return reviewer ? { ...reviewer, aiMatch: match } : null
 		})
-		.filter((r) => r !== null) // Remove null entries
-		.sort((a, b) => {
-			// Sort by AI score descending (highest match first)
-			return (b?.aiMatch?.overall_match_score || 0) - (a?.aiMatch?.overall_match_score || 0)
-		}) as Array<Reviewer & { aiMatch: ReviewerMatch }>
+		.filter((r): r is ReviewerWithMatch => r !== null)
+		.sort((a, b) => (b.aiMatch.overall_match_score || 0) - (a.aiMatch.overall_match_score || 0))
 
-	const handleAddReviewer = (reviewerId: string) => {
-		if (!selectedReviewers.includes(reviewerId)) {
-			setSelectedReviewers([...selectedReviewers, reviewerId])
-		}
-	}
-
-	const handleRemoveReviewer = (reviewerId: string) => {
-		setSelectedReviewers(selectedReviewers.filter((id) => id !== reviewerId))
-	}
+	const toggleReviewer = useCallback((reviewerId: string) => {
+		setSelectedReviewers(prev =>
+			prev.includes(reviewerId)
+				? prev.filter(id => id !== reviewerId)
+				: [...prev, reviewerId]
+		)
+	}, [])
 
 	const handleSubmit = async () => {
 		if (selectedReviewers.length === 0) {
@@ -136,60 +332,42 @@ export default function AssignReviewerForm({
 
 		try {
 			const supabase = createClient()
-			const {
-				data: { user }
-			} = await supabase.auth.getUser()
+			const { data: { user } } = await supabase.auth.getUser()
 
 			if (!user) throw new Error('Not authenticated')
 
-			// Create assignments for each selected reviewer
 			const assignments = selectedReviewers.map((reviewerId) => ({
 				article_id: paperId,
 				reviewer_id: reviewerId,
-				assigned_by_editor_id: user.id, // Added back - required field!
+				assigned_by_editor_id: user.id,
 				status: 'pending',
 				deadline: deadline.toISOString(),
 				assigned_at: new Date().toISOString()
 			}))
 
-			console.log('Inserting assignments:', assignments)
-			console.log('Current user (editor):', user.id)
-
-			const { data: insertedData, error: assignmentError } = await supabase
+			const { error: assignmentError } = await supabase
 				.from('assignments')
 				.insert(assignments)
-				.select() // Return inserted data for verification
-
-			console.log('Inserted assignments result:', insertedData)
-			console.log('Assignment error:', assignmentError)
+				.select()
 
 			if (assignmentError) throw assignmentError
 
-			// Update paper status to under_review if it's still submitted
-			const { error: updateError } = await supabase
+			await supabase
 				.from('articles')
-				.update({
-					status: 'under_review',
-					assigned_editor_id: user.id
-				})
+				.update({ status: 'under_review', assigned_editor_id: user.id })
 				.eq('id', paperId)
 				.eq('status', 'submitted')
 
-			if (updateError) throw updateError
-
-			// TODO: Send notification emails to reviewers
-			// This would typically be done through a backend service
-
 			toast.success('Başarılı!', `${selectedReviewers.length} hakem başarıyla atandı!`)
-			setTimeout(() => {
-				router.push(`/editor/articles/${paperId}`)
-			}, 1500)
+			setTimeout(() => router.push(`/editor/articles/${paperId}`), 1500)
 		} catch (err: any) {
 			toast.error('Hata', err.message || 'Hakem atanırken bir hata oluştu')
 		} finally {
 			setLoading(false)
 		}
 	}
+
+	const minimumScore = matchStats?.minimum_score || 60
 
 	return (
 		<div className="space-y-6">
@@ -232,10 +410,10 @@ export default function AssignReviewerForm({
 							</CardTitle>
 							<CardDescription>
 								{aiMatches.length > 0
-									? `AI tarafından %${matchStats?.minimum_score || 60}+ eşleşme skoruna sahip hakemler öneriliyor`
+									? `AI tarafından %${minimumScore}+ eşleşme skoruna sahip hakemler öneriliyor`
 									: loadingMatches
-									? 'Makale analiz ediliyor...'
-									: 'Bu makale için yeterli eşleşme skoru olan hakem bulunamadı'
+										? 'Makale analiz ediliyor...'
+										: 'Bu makale için yeterli eşleşme skoru olan hakem bulunamadı'
 								}
 							</CardDescription>
 							{matchStats && matchStats.filtered_from > aiMatches.length && (
@@ -245,243 +423,38 @@ export default function AssignReviewerForm({
 							)}
 						</div>
 						{aiMatches.length > 0 && (
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => setShowAiSuggestions(!showAiSuggestions)}
-							>
+							<Button variant="ghost" size="sm" onClick={() => setShowAiSuggestions(!showAiSuggestions)}>
 								{showAiSuggestions ? 'Detayları Gizle' : 'Detayları Göster'}
 							</Button>
 						)}
 					</div>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{loadingMatches && (
-						<div className="flex flex-col items-center justify-center py-8 space-y-2">
-							<div className="flex items-center gap-2 text-gray-600">
-								<Sparkles className="h-5 w-5 animate-pulse text-blue-500" />
-								<span className="font-medium">Makale analiz ediliyor...</span>
-							</div>
-							<p className="text-sm text-gray-500">AI hakemlerinizi makale ile eşleştiriyor</p>
-						</div>
-					)}
+					{loadingMatches && <LoadingState />}
 
-					{/* Available Reviewers */}
 					{!loadingMatches && (
 						<div>
 							<Label>
 								Önerilen Hakemler
 								{aiMatches.length > 0 && (
 									<span className="text-sm font-normal text-gray-500 ml-2">
-										(%{matchStats?.minimum_score || 60}+ eşleşme skoru)
+										(%{minimumScore}+ eşleşme skoru)
 									</span>
 								)}
 							</Label>
 							<div className="mt-2 space-y-2 max-h-96 overflow-y-auto border rounded-lg p-3">
 								{reviewersWithScores.length === 0 ? (
-									<div className="flex flex-col items-center justify-center py-8 space-y-3">
-										<AlertCircle className="h-12 w-12 text-amber-500" />
-										<div className="text-center">
-											<p className="font-medium text-gray-700">Yeterli Eşleşme Bulunamadı</p>
-											<p className="text-sm text-gray-500 mt-1">
-												Bu makale için %{matchStats?.minimum_score || 60} ve üzeri eşleşme skoruna sahip hakem bulunamadı.
-											</p>
-											<p className="text-xs text-gray-400 mt-2">
-												Hakem profillerinin AI analizi yapıldığından emin olun.
-											</p>
-										</div>
-									</div>
+									<EmptyReviewersState minimumScore={minimumScore} />
 								) : (
-									reviewersWithScores.map((reviewer) => {
-										const match = reviewer.aiMatch
-
-										return (
-											<div
-												key={reviewer.id}
-												className={cn(
-													'p-3 border rounded-lg cursor-pointer transition-all',
-													selectedReviewers.includes(reviewer.id)
-														? 'bg-blue-50 border-blue-300'
-														: match.recommendation_level === 'excellent'
-															? 'hover:bg-green-50 border-green-200 bg-green-50/30'
-															: match.recommendation_level === 'good'
-															? 'hover:bg-blue-50 border-blue-200 bg-blue-50/30'
-															: 'hover:bg-gray-50'
-												)}
-												onClick={() => {
-													if (selectedReviewers.includes(reviewer.id)) {
-														handleRemoveReviewer(reviewer.id)
-													} else {
-														handleAddReviewer(reviewer.id)
-													}
-												}}
-											>
-												<div className="flex items-start justify-between gap-4">
-													<div className="flex-1 min-w-0">
-														{/* Reviewer Name and Score Badge */}
-														<div className="flex items-center gap-2 flex-wrap">
-															<div className="flex items-center gap-2">
-																<User className="h-4 w-4 flex-shrink-0" />
-																<span className="font-medium">{reviewer.name}</span>
-															</div>
-
-															{/* Match Score Badge */}
-															<Badge
-																variant={
-																	match.recommendation_level === 'excellent'
-																		? 'default'
-																		: match.recommendation_level === 'good'
-																		? 'secondary'
-																		: 'outline'
-																}
-																className={cn(
-																	'gap-1',
-																	match.recommendation_level === 'excellent' && 'bg-green-600',
-																	match.recommendation_level === 'good' && 'bg-blue-600 text-white'
-																)}
-															>
-																<TrendingUp className="h-3 w-3" />
-																{Math.round(match.overall_match_score)}% eşleşme
-															</Badge>
-
-															{/* Recommendation Level Badge */}
-															{match.recommendation_level === 'excellent' && (
-																<Badge variant="outline" className="gap-1 border-green-600 text-green-700">
-																	<CheckCircle2 className="h-3 w-3" />
-																	Mükemmel Eşleşme
-																</Badge>
-															)}
-															{match.recommendation_level === 'good' && (
-																<Badge variant="outline" className="gap-1 border-blue-600 text-blue-700">
-																	<CheckCircle2 className="h-3 w-3" />
-																	İyi Eşleşme
-																</Badge>
-															)}
-														</div>
-
-														{/* Email */}
-														<div className="flex items-center gap-2 mt-1">
-															<Mail className="h-3 w-3" />
-															<span className="text-sm text-gray-600 truncate">{reviewer.email}</span>
-														</div>
-
-														{/* Expertise Areas */}
-														{reviewer.expertise_areas && reviewer.expertise_areas.length > 0 && (
-															<div className="flex items-start gap-2 mt-2">
-																<Award className="h-3 w-3 mt-1 flex-shrink-0" />
-																<div className="flex flex-wrap gap-1">
-																	{reviewer.expertise_areas.map((area, index) => (
-																		<Badge key={index} variant="outline" className="text-xs">
-																			{area}
-																		</Badge>
-																	))}
-																</div>
-															</div>
-														)}
-
-														{/* AI Match Details */}
-														{showAiSuggestions && (
-															<div className="mt-3 p-2 bg-gray-50 rounded border border-gray-200">
-																<div className="grid grid-cols-2 gap-2 text-xs">
-																	<div className="flex items-center gap-1">
-																		<div
-																			className="h-2 w-2 rounded-full"
-																			style={{
-																				backgroundColor: match.topic_similarity_score > 70 ? '#10b981' :
-																								match.topic_similarity_score > 40 ? '#f59e0b' : '#ef4444'
-																			}}
-																		/>
-																		<span className="text-gray-600">Konu Benzerliği:</span>
-																		<span className="ml-1 font-medium">{Math.round(match.topic_similarity_score)}%</span>
-																	</div>
-																	<div className="flex items-center gap-1">
-																		<div
-																			className="h-2 w-2 rounded-full"
-																			style={{
-																				backgroundColor: match.keyword_overlap_score > 70 ? '#10b981' :
-																								match.keyword_overlap_score > 40 ? '#f59e0b' : '#ef4444'
-																			}}
-																		/>
-																		<span className="text-gray-600">Anahtar Kelime:</span>
-																		<span className="ml-1 font-medium">{Math.round(match.keyword_overlap_score)}%</span>
-																	</div>
-																	<div className="flex items-center gap-1">
-																		<div
-																			className="h-2 w-2 rounded-full"
-																			style={{
-																				backgroundColor: match.methodology_match_score > 70 ? '#10b981' :
-																								match.methodology_match_score > 40 ? '#f59e0b' : '#ef4444'
-																			}}
-																		/>
-																		<span className="text-gray-600">Metodoloji:</span>
-																		<span className="ml-1 font-medium">{Math.round(match.methodology_match_score)}%</span>
-																	</div>
-																	<div className="flex items-center gap-1">
-																		<div
-																			className="h-2 w-2 rounded-full"
-																			style={{
-																				backgroundColor: match.domain_expertise_score > 70 ? '#10b981' :
-																								match.domain_expertise_score > 40 ? '#f59e0b' : '#ef4444'
-																			}}
-																		/>
-																		<span className="text-gray-600">Alan Uzmanlığı:</span>
-																		<span className="ml-1 font-medium">{Math.round(match.domain_expertise_score)}%</span>
-																	</div>
-																</div>
-
-																{/* Match confidence indicator */}
-																{match.confidence_score && (
-																	<div className="mt-2 flex items-center gap-2">
-																		<span className="text-xs text-gray-600">Güvenilirlik:</span>
-																		<div className="flex-1 bg-gray-200 rounded-full h-2">
-																			<div
-																				className="h-2 rounded-full transition-all"
-																				style={{
-																					width: `${match.confidence_score}%`,
-																					backgroundColor: match.confidence_score > 70 ? '#10b981' :
-																									match.confidence_score > 40 ? '#f59e0b' : '#ef4444'
-																				}}
-																			/>
-																		</div>
-																		<span className="text-xs font-medium">{Math.round(match.confidence_score)}%</span>
-																	</div>
-																)}
-
-																{match.matching_keywords && match.matching_keywords.length > 0 && (
-																	<div className="mt-2">
-																		<span className="text-xs text-gray-600">Eşleşen Terimler:</span>
-																		<div className="flex flex-wrap gap-1 mt-1">
-																			{match.matching_keywords.slice(0, 5).map((keyword, idx) => (
-																				<Badge key={idx} variant="secondary" className="text-xs">
-																					{keyword}
-																				</Badge>
-																			))}
-																		</div>
-																	</div>
-																)}
-															</div>
-														)}
-													</div>
-
-													{/* Select Button */}
-													<Button
-														size="sm"
-														variant={selectedReviewers.includes(reviewer.id) ? 'default' : 'outline'}
-														onClick={(e) => {
-															e.stopPropagation()
-															if (selectedReviewers.includes(reviewer.id)) {
-																handleRemoveReviewer(reviewer.id)
-															} else {
-																handleAddReviewer(reviewer.id)
-															}
-														}}
-													>
-														{selectedReviewers.includes(reviewer.id) ? 'Seçildi' : 'Seç'}
-													</Button>
-												</div>
-											</div>
-										)
-									})
+									reviewersWithScores.map((reviewer) => (
+										<ReviewerCard
+											key={reviewer.id}
+											reviewer={reviewer}
+											isSelected={selectedReviewers.includes(reviewer.id)}
+											showDetails={showAiSuggestions}
+											onToggle={() => toggleReviewer(reviewer.id)}
+										/>
+									))
 								)}
 							</div>
 						</div>
@@ -499,7 +472,7 @@ export default function AssignReviewerForm({
 											{reviewer.name}
 											<button
 												className="ml-2 text-white hover:text-gray-200"
-												onClick={() => handleRemoveReviewer(reviewerId)}
+												onClick={() => toggleReviewer(reviewerId)}
 											>
 												×
 											</button>
@@ -517,10 +490,7 @@ export default function AssignReviewerForm({
 							<PopoverTrigger asChild>
 								<Button
 									variant="outline"
-									className={cn(
-										'w-full justify-start text-left font-normal mt-2',
-										!deadline && 'text-muted-foreground'
-									)}
+									className={cn('w-full justify-start text-left font-normal mt-2', !deadline && 'text-muted-foreground')}
 								>
 									<CalendarIcon className="mr-2 h-4 w-4" />
 									{deadline ? format(deadline, 'd MMMM yyyy', { locale: tr }) : <span>Tarih seçin</span>}

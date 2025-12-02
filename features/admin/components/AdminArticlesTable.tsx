@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,20 +29,13 @@ import { Eye, Trash2, Search, Edit, XCircle, UserCog, Sparkles, FileText, Loader
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import PublishArticleDialog from './PublishArticleDialog'
 import { Article } from '@/features/articles/types/article.types'
 
+// Types
 interface AdminArticle extends Article {
-	author?: {
-		name: string
-		email: string
-	}
-}
-
-interface AdminArticlesTableProps {
-	articles: AdminArticle[]
+	author?: { name: string; email: string }
 }
 
 interface Editor {
@@ -51,6 +44,320 @@ interface Editor {
 	email: string
 }
 
+interface AdminArticlesTableProps {
+	articles: AdminArticle[]
+}
+
+// Status configuration
+const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+	submitted: { label: 'Gönderildi', variant: 'secondary' },
+	under_review: { label: 'İncelemede', variant: 'default' },
+	revision_requested: { label: 'Revizyon İstendi', variant: 'outline' },
+	accepted: { label: 'Kabul Edildi', variant: 'default' },
+	rejected: { label: 'Reddedildi', variant: 'destructive' },
+	published: { label: 'Yayınlandı', variant: 'default' }
+}
+
+const getStatusInfo = (status: string) => STATUS_CONFIG[status] || { label: status, variant: 'outline' as const }
+
+// API helper
+async function apiRequest<T>(
+	url: string,
+	options?: RequestInit
+): Promise<{ data?: T; error?: string }> {
+	try {
+		const response = await fetch(url, {
+			headers: { 'Content-Type': 'application/json' },
+			...options
+		})
+
+		if (!response.ok) {
+			const error = await response.json()
+			throw new Error(error.error || 'İşlem başarısız')
+		}
+
+		const data = await response.json()
+		return { data }
+	} catch (error) {
+		return { error: error instanceof Error ? error.message : 'Bir hata oluştu' }
+	}
+}
+
+// Editor Assignment Dialog Component
+interface EditorDialogProps {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	article: AdminArticle | null
+	editors: Editor[]
+	selectedEditorId: string
+	setSelectedEditorId: (id: string) => void
+	onSubmit: () => void
+	isSubmitting: boolean
+}
+
+function EditorAssignmentDialog({
+	open,
+	onOpenChange,
+	article,
+	editors,
+	selectedEditorId,
+	setSelectedEditorId,
+	onSubmit,
+	isSubmitting
+}: EditorDialogProps) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-[425px]">
+				<DialogHeader>
+					<DialogTitle>Editör Ata</DialogTitle>
+					<DialogDescription>"{article?.title}" makalesine editör atayın.</DialogDescription>
+				</DialogHeader>
+				<div className="grid gap-4 py-4">
+					<div className="grid gap-2">
+						<Label htmlFor="editor">Editör</Label>
+						<Select value={selectedEditorId || 'unassign'} onValueChange={setSelectedEditorId}>
+							<SelectTrigger id="editor">
+								<SelectValue placeholder="Editör seçin" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="unassign">Editör Atamasını Kaldır</SelectItem>
+								{editors.map((editor) => (
+									<SelectItem key={editor.id} value={editor.id}>
+										{editor.name} ({editor.email})
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						{editors.length === 0 && <p className="text-sm text-gray-500">Aktif editör bulunamadı.</p>}
+					</div>
+				</div>
+				<DialogFooter>
+					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+						İptal
+					</Button>
+					<Button onClick={onSubmit} disabled={isSubmitting}>
+						{isSubmitting ? 'Atanıyor...' : 'Ata'}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
+// Status Update Dialog Component
+interface StatusDialogProps {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	article: AdminArticle | null
+	newStatus: string
+	setNewStatus: (status: string) => void
+	onSubmit: () => void
+	isSubmitting: boolean
+}
+
+function StatusUpdateDialog({
+	open,
+	onOpenChange,
+	article,
+	newStatus,
+	setNewStatus,
+	onSubmit,
+	isSubmitting
+}: StatusDialogProps) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-[425px]">
+				<DialogHeader>
+					<DialogTitle>Makale Durumunu Güncelle</DialogTitle>
+					<DialogDescription>"{article?.title}" makalesinin durumunu değiştirin.</DialogDescription>
+				</DialogHeader>
+				<div className="grid gap-4 py-4">
+					<div className="grid gap-2">
+						<Label htmlFor="status">Yeni Durum</Label>
+						<Select value={newStatus} onValueChange={setNewStatus}>
+							<SelectTrigger id="status">
+								<SelectValue placeholder="Durum seçin" />
+							</SelectTrigger>
+							<SelectContent>
+								{Object.entries(STATUS_CONFIG).map(([value, { label }]) => (
+									<SelectItem key={value} value={value}>{label}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+				<DialogFooter>
+					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+						İptal
+					</Button>
+					<Button onClick={onSubmit} disabled={isSubmitting}>
+						{isSubmitting ? 'Güncelleniyor...' : 'Güncelle'}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
+// Delete Confirmation Dialog Component
+interface DeleteDialogProps {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	article: AdminArticle | null
+	onConfirm: () => void
+	isSubmitting: boolean
+}
+
+function DeleteConfirmationDialog({
+	open,
+	onOpenChange,
+	article,
+	onConfirm,
+	isSubmitting
+}: DeleteDialogProps) {
+	return (
+		<AlertDialog open={open} onOpenChange={onOpenChange}>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Makaleyi Sil</AlertDialogTitle>
+					<AlertDialogDescription>
+						Bu makaleyi silmek istediğinizden emin misiniz?
+						<br />
+						<strong className="text-foreground">"{article?.title}"</strong>
+						<br />
+						Bu işlem geri alınamaz ve tüm ilgili kayıtlar da silinecektir.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel disabled={isSubmitting}>İptal</AlertDialogCancel>
+					<AlertDialogAction
+						onClick={onConfirm}
+						disabled={isSubmitting}
+						className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+					>
+						{isSubmitting ? 'Siliniyor...' : 'Sil'}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	)
+}
+
+// Article Row Component
+interface ArticleRowProps {
+	article: AdminArticle
+	editorName?: string
+	isAnalyzing: boolean
+	isSubmitting: boolean
+	onEditorClick: () => void
+	onStatusClick: () => void
+	onDeleteClick: () => void
+	onPublishClick: () => void
+	onRejectClick: () => void
+	onAnalyzeClick: () => void
+}
+
+function ArticleRow({
+	article,
+	editorName,
+	isAnalyzing,
+	isSubmitting,
+	onEditorClick,
+	onStatusClick,
+	onDeleteClick,
+	onPublishClick,
+	onRejectClick,
+	onAnalyzeClick
+}: ArticleRowProps) {
+	const statusInfo = getStatusInfo(article.status)
+
+	return (
+		<TableRow>
+			<TableCell className="font-medium max-w-md truncate">{article.title}</TableCell>
+			<TableCell>{article.author?.name || 'Bilinmiyor'}</TableCell>
+			<TableCell>
+				{article.assigned_editor_id ? (
+					<div className="flex items-center gap-2">
+						<span className="text-sm">{editorName || 'Yükleniyor...'}</span>
+						<Button variant="ghost" size="sm" onClick={onEditorClick} title="Editörü Değiştir">
+							<Edit className="h-3 w-3" />
+						</Button>
+					</div>
+				) : (
+					<Button variant="outline" size="sm" onClick={onEditorClick} title="Editör Ata">
+						<UserCog className="h-4 w-4 mr-1" />
+						Editör Ata
+					</Button>
+				)}
+			</TableCell>
+			<TableCell>
+				<Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+			</TableCell>
+			<TableCell>{new Date(article.created_at).toLocaleDateString('tr-TR')}</TableCell>
+			<TableCell className="text-right">
+				<div className="flex justify-end gap-2">
+					<Link href={`/articles/${article.id}`}>
+						<Button variant="outline" size="sm" title="Görüntüle">
+							<Eye className="h-4 w-4" />
+						</Button>
+					</Link>
+
+					{article.file_url && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onAnalyzeClick}
+							disabled={isAnalyzing}
+							title="PDF Analiz Et"
+							className="bg-blue-50 hover:bg-blue-100 border-blue-300"
+						>
+							{isAnalyzing ? (
+								<><Loader2 className="h-4 w-4 mr-1 animate-spin" />Analiz</>
+							) : (
+								<><FileText className="h-4 w-4 mr-1" />PDF Analiz</>
+							)}
+						</Button>
+					)}
+
+					{article.status === 'accepted' && (
+						<Button
+							variant="default"
+							size="sm"
+							onClick={onPublishClick}
+							className="bg-green-600 hover:bg-green-700"
+							title="Yayınla"
+						>
+							<Sparkles className="h-4 w-4 mr-1" />
+							Yayınla
+						</Button>
+					)}
+
+					<Button variant="outline" size="sm" onClick={onStatusClick} title="Durumu Güncelle">
+						<Edit className="h-4 w-4" />
+					</Button>
+
+					{article.status !== 'rejected' && article.status !== 'published' && (
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={onRejectClick}
+							disabled={isSubmitting}
+							title="Reddet"
+						>
+							<XCircle className="h-4 w-4" />
+						</Button>
+					)}
+
+					<Button variant="destructive" size="sm" onClick={onDeleteClick} title="Sil">
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</div>
+			</TableCell>
+		</TableRow>
+	)
+}
+
+// Main Component
 export default function AdminArticlesTable({ articles }: AdminArticlesTableProps) {
 	const router = useRouter()
 	const [searchTerm, setSearchTerm] = useState('')
@@ -66,29 +373,24 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [analyzingArticles, setAnalyzingArticles] = useState<Record<string, boolean>>({})
 
-	// Editörleri ve atanmış editör isimlerini yükle
+	// Load editors
 	useEffect(() => {
 		const loadEditors = async () => {
 			const supabase = createClient()
-			const { data: editorsData } = await supabase
+			const { data } = await supabase
 				.from('users')
 				.select('id, name, email')
 				.eq('role', 'editor')
 				.eq('is_active', true)
 				.order('name')
 
-			if (editorsData) {
-				setEditors(editorsData)
-
-				// Atanmış editör isimlerini map'e ekle
+			if (data) {
+				setEditors(data)
 				const namesMap = new Map<string, string>()
-				editorsData.forEach((editor) => {
-					namesMap.set(editor.id, editor.name)
-				})
+				data.forEach((editor) => namesMap.set(editor.id, editor.name))
 				setEditorNames(namesMap)
 			}
 		}
-
 		loadEditors()
 	}, [])
 
@@ -99,226 +401,126 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 			article.status.toLowerCase().includes(searchTerm.toLowerCase())
 	)
 
-	const handleStatusClick = (article: AdminArticle) => {
+	// Handlers
+	const handleStatusClick = useCallback((article: AdminArticle) => {
 		setSelectedArticle(article)
 		setNewStatus(article.status)
 		setStatusDialogOpen(true)
-	}
+	}, [])
 
-	const handleDeleteClick = (article: AdminArticle) => {
+	const handleDeleteClick = useCallback((article: AdminArticle) => {
 		setSelectedArticle(article)
 		setDeleteDialogOpen(true)
-	}
+	}, [])
 
-	const handleEditorClick = (article: AdminArticle) => {
+	const handleEditorClick = useCallback((article: AdminArticle) => {
 		setSelectedArticle(article)
 		setSelectedEditorId(article.assigned_editor_id || 'unassign')
 		setEditorDialogOpen(true)
-	}
+	}, [])
 
-	const handlePublishClick = (article: AdminArticle) => {
+	const handlePublishClick = useCallback((article: AdminArticle) => {
 		setSelectedArticle(article)
 		setPublishDialogOpen(true)
-	}
+	}, [])
 
-	const handleRejectClick = async (article: AdminArticle) => {
+	const handleRejectClick = useCallback(async (article: AdminArticle) => {
 		setIsSubmitting(true)
-		try {
-			const response = await fetch(`/api/admin/articles/${article.id}`, {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ status: 'rejected' })
-			})
+		const { error } = await apiRequest(`/api/admin/articles/${article.id}`, {
+			method: 'PUT',
+			body: JSON.stringify({ status: 'rejected' })
+		})
 
-			if (!response.ok) {
-				const error = await response.json()
-				throw new Error(error.error || 'Güncelleme başarısız')
-			}
-
+		if (error) {
+			toast.error(error)
+		} else {
 			toast.success('Makale reddedildi')
 			router.refresh()
-		} catch (error) {
-			console.error('Error rejecting article:', error)
-			toast.error(error instanceof Error ? error.message : 'Makale reddedilirken bir hata oluştu')
-		} finally {
-			setIsSubmitting(false)
 		}
-	}
+		setIsSubmitting(false)
+	}, [router])
 
-	const handleStatusSubmit = async () => {
+	const handleStatusSubmit = useCallback(async () => {
 		if (!selectedArticle) return
 
 		setIsSubmitting(true)
-		try {
-			const response = await fetch(`/api/admin/articles/${selectedArticle.id}`, {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ status: newStatus })
-			})
+		const { error } = await apiRequest(`/api/admin/articles/${selectedArticle.id}`, {
+			method: 'PUT',
+			body: JSON.stringify({ status: newStatus })
+		})
 
-			if (!response.ok) {
-				const error = await response.json()
-				throw new Error(error.error || 'Güncelleme başarısız')
-			}
-
+		if (error) {
+			toast.error(error)
+		} else {
 			toast.success('Makale durumu başarıyla güncellendi')
 			setStatusDialogOpen(false)
 			router.refresh()
-		} catch (error) {
-			console.error('Error updating article status:', error)
-			toast.error(error instanceof Error ? error.message : 'Durum güncellenirken bir hata oluştu')
-		} finally {
-			setIsSubmitting(false)
 		}
-	}
+		setIsSubmitting(false)
+	}, [selectedArticle, newStatus, router])
 
-	const handleEditorSubmit = async () => {
+	const handleEditorSubmit = useCallback(async () => {
 		if (!selectedArticle) return
 
 		setIsSubmitting(true)
-		try {
-			// "unassign" değerini null'a çevir
-			const editorIdToAssign = selectedEditorId === 'unassign' ? null : selectedEditorId
+		const editorIdToAssign = selectedEditorId === 'unassign' ? null : selectedEditorId
 
-			const response = await fetch(`/api/admin/articles/${selectedArticle.id}`, {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					assigned_editor_id: editorIdToAssign
-				})
-			})
+		const { error } = await apiRequest(`/api/admin/articles/${selectedArticle.id}`, {
+			method: 'PUT',
+			body: JSON.stringify({ assigned_editor_id: editorIdToAssign })
+		})
 
-			if (!response.ok) {
-				const error = await response.json()
-				throw new Error(error.error || 'Güncelleme başarısız')
-			}
-
+		if (error) {
+			toast.error(error)
+		} else {
 			toast.success(editorIdToAssign ? 'Editör başarıyla atandı' : 'Editör ataması kaldırıldı')
 			setEditorDialogOpen(false)
 			router.refresh()
-		} catch (error) {
-			console.error('Error updating article editor:', error)
-			toast.error(error instanceof Error ? error.message : 'Editör atanırken bir hata oluştu')
-		} finally {
-			setIsSubmitting(false)
 		}
-	}
+		setIsSubmitting(false)
+	}, [selectedArticle, selectedEditorId, router])
 
-	const handleDeleteConfirm = async () => {
+	const handleDeleteConfirm = useCallback(async () => {
 		if (!selectedArticle) return
 
 		setIsSubmitting(true)
-		try {
-			const response = await fetch(`/api/admin/articles/${selectedArticle.id}`, {
-				method: 'DELETE'
-			})
+		const { error } = await apiRequest(`/api/admin/articles/${selectedArticle.id}`, {
+			method: 'DELETE'
+		})
 
-			if (!response.ok) {
-				const error = await response.json()
-				throw new Error(error.error || 'Silme başarısız')
-			}
-
+		if (error) {
+			toast.error(error)
+		} else {
 			toast.success('Makale başarıyla silindi')
 			setDeleteDialogOpen(false)
 			router.refresh()
-		} catch (error) {
-			console.error('Error deleting article:', error)
-			toast.error(error instanceof Error ? error.message : 'Makale silinirken bir hata oluştu')
-		} finally {
-			setIsSubmitting(false)
 		}
-	}
+		setIsSubmitting(false)
+	}, [selectedArticle, router])
 
-	const handleAnalyzeArticle = async (article: AdminArticle) => {
+	const handleAnalyzeArticle = useCallback(async (article: AdminArticle) => {
 		setAnalyzingArticles((prev) => ({ ...prev, [article.id]: true }))
 
-		try {
-			const response = await fetch('/api/admin/analyze-article', {
+		const { data, error } = await apiRequest<{ extracted_pdf_text?: { full_length: number; full_text: string } }>(
+			'/api/admin/analyze-article',
+			{
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
 				body: JSON.stringify({ articleId: article.id })
-			})
-
-			if (!response.ok) {
-				const error = await response.json()
-				throw new Error(error.error || 'Analiz başarısız')
 			}
+		)
 
-			const data = await response.json()
-
-			// Show extracted text in console
-			if (data.extracted_pdf_text) {
-				console.log('==================================================')
-				console.log('✅ MAKALE PDF TEXT ÇIKARILDI:')
-				console.log('==================================================')
-				console.log('Makale:', article.title)
-				console.log('Text uzunluğu:', data.extracted_pdf_text.full_length, 'karakter')
-				console.log('==================================================')
-				console.log(data.extracted_pdf_text.full_text)
-				console.log('==================================================')
-
-				toast.success(
-					'Analiz Tamamlandı',
-					`PDF'den ${data.extracted_pdf_text.full_length} karakter çıkarıldı. Console'u kontrol edin!`
-				)
-			} else {
-				toast.success('Analiz Tamamlandı', 'Makale başarıyla analiz edildi (PDF yok)')
-			}
-
+		if (error) {
+			toast.error(error)
+		} else if (data?.extracted_pdf_text) {
+			console.log('PDF Text çıkarıldı:', article.title, data.extracted_pdf_text.full_length, 'karakter')
+			toast.success(`PDF'den ${data.extracted_pdf_text.full_length} karakter çıkarıldı`)
 			router.refresh()
-		} catch (error) {
-			console.error('Error analyzing article:', error)
-			toast.error(error instanceof Error ? error.message : 'Makale analiz edilirken bir hata oluştu')
-		} finally {
-			setAnalyzingArticles((prev) => ({ ...prev, [article.id]: false }))
+		} else {
+			toast.success('Analiz tamamlandı (PDF yok)')
 		}
-	}
 
-	const getStatusBadgeVariant = (status: string) => {
-		switch (status) {
-			case 'submitted':
-				return 'secondary'
-			case 'under_review':
-				return 'default'
-			case 'revision_requested':
-				return 'outline'
-			case 'accepted':
-				return 'default'
-			case 'rejected':
-				return 'destructive'
-			case 'published':
-				return 'default'
-			default:
-				return 'outline'
-		}
-	}
-
-	const getStatusLabel = (status: string) => {
-		switch (status) {
-			case 'submitted':
-				return 'Gönderildi'
-			case 'under_review':
-				return 'İncelemede'
-			case 'revision_requested':
-				return 'Revizyon İstendi'
-			case 'accepted':
-				return 'Kabul Edildi'
-			case 'rejected':
-				return 'Reddedildi'
-			case 'published':
-				return 'Yayınlandı'
-			default:
-				return status
-		}
-	}
+		setAnalyzingArticles((prev) => ({ ...prev, [article.id]: false }))
+	}, [router])
 
 	return (
 		<div className="space-y-4">
@@ -348,99 +550,19 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 					</TableHeader>
 					<TableBody>
 						{filteredArticles.map((article) => (
-							<TableRow key={article.id}>
-								<TableCell className="font-medium max-w-md truncate">{article.title}</TableCell>
-								<TableCell>{article.author?.name || 'Bilinmiyor'}</TableCell>
-								<TableCell>
-									{article.assigned_editor_id ? (
-										<div className="flex items-center gap-2">
-											<span className="text-sm">{editorNames.get(article.assigned_editor_id) || 'Yükleniyor...'}</span>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleEditorClick(article)}
-												title="Editörü Değiştir"
-											>
-												<Edit className="h-3 w-3" />
-											</Button>
-										</div>
-									) : (
-										<Button variant="outline" size="sm" onClick={() => handleEditorClick(article)} title="Editör Ata">
-											<UserCog className="h-4 w-4 mr-1" />
-											Editör Ata
-										</Button>
-									)}
-								</TableCell>
-								<TableCell>
-									<Badge variant={getStatusBadgeVariant(article.status)}>{getStatusLabel(article.status)}</Badge>
-								</TableCell>
-								<TableCell>{new Date(article.created_at).toLocaleDateString('tr-TR')}</TableCell>
-								<TableCell className="text-right">
-									<div className="flex justify-end gap-2">
-										<Link href={`/articles/${article.id}`}>
-											<Button variant="outline" size="sm" title="Görüntüle">
-												<Eye className="h-4 w-4" />
-											</Button>
-										</Link>
-										{article.file_url && (
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => handleAnalyzeArticle(article)}
-												disabled={analyzingArticles[article.id]}
-												title="PDF'den Text Çıkar ve Analiz Et"
-												className="bg-blue-50 hover:bg-blue-100 border-blue-300"
-											>
-												{analyzingArticles[article.id] ? (
-													<>
-														<Loader2 className="h-4 w-4 mr-1 animate-spin" />
-														Analiz
-													</>
-												) : (
-													<>
-														<FileText className="h-4 w-4 mr-1" />
-														PDF Analiz
-													</>
-												)}
-											</Button>
-										)}
-										{article.status === 'accepted' && (
-											<Button
-												variant="default"
-												size="sm"
-												onClick={() => handlePublishClick(article)}
-												className="bg-green-600 hover:bg-green-700"
-												title="Yayınla"
-											>
-												<Sparkles className="h-4 w-4 mr-1" />
-												Yayınla
-											</Button>
-										)}
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => handleStatusClick(article)}
-											title="Durumu Güncelle"
-										>
-											<Edit className="h-4 w-4" />
-										</Button>
-										{article.status !== 'rejected' && article.status !== 'published' && (
-											<Button
-												variant="destructive"
-												size="sm"
-												onClick={() => handleRejectClick(article)}
-												disabled={isSubmitting}
-												title="Reddet"
-											>
-												<XCircle className="h-4 w-4" />
-											</Button>
-										)}
-										<Button variant="destructive" size="sm" onClick={() => handleDeleteClick(article)} title="Sil">
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									</div>
-								</TableCell>
-							</TableRow>
+							<ArticleRow
+								key={article.id}
+								article={article}
+								editorName={editorNames.get(article.assigned_editor_id || '')}
+								isAnalyzing={analyzingArticles[article.id] || false}
+								isSubmitting={isSubmitting}
+								onEditorClick={() => handleEditorClick(article)}
+								onStatusClick={() => handleStatusClick(article)}
+								onDeleteClick={() => handleDeleteClick(article)}
+								onPublishClick={() => handlePublishClick(article)}
+								onRejectClick={() => handleRejectClick(article)}
+								onAnalyzeClick={() => handleAnalyzeArticle(article)}
+							/>
 						))}
 					</TableBody>
 				</Table>
@@ -450,106 +572,36 @@ export default function AdminArticlesTable({ articles }: AdminArticlesTableProps
 				<p className="text-center text-gray-500 py-8">Arama kriterine uygun makale bulunamadı.</p>
 			)}
 
-			{/* Editor Assignment Dialog */}
-			<Dialog open={editorDialogOpen} onOpenChange={setEditorDialogOpen}>
-				<DialogContent className="sm:max-w-[425px]">
-					<DialogHeader>
-						<DialogTitle>Editör Ata</DialogTitle>
-						<DialogDescription>"{selectedArticle?.title}" makalesine editör atayın.</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid gap-2">
-							<Label htmlFor="editor">Editör</Label>
-							<Select value={selectedEditorId || 'unassign'} onValueChange={setSelectedEditorId}>
-								<SelectTrigger id="editor">
-									<SelectValue placeholder="Editör seçin" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="unassign">Editör Atamasını Kaldır</SelectItem>
-									{editors.map((editor) => (
-										<SelectItem key={editor.id} value={editor.id}>
-											{editor.name} ({editor.email})
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							{editors.length === 0 && <p className="text-sm text-gray-500">Aktif editör bulunamadı.</p>}
-						</div>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setEditorDialogOpen(false)} disabled={isSubmitting}>
-							İptal
-						</Button>
-						<Button onClick={handleEditorSubmit} disabled={isSubmitting}>
-							{isSubmitting ? 'Atanıyor...' : 'Ata'}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			{/* Dialogs */}
+			<EditorAssignmentDialog
+				open={editorDialogOpen}
+				onOpenChange={setEditorDialogOpen}
+				article={selectedArticle}
+				editors={editors}
+				selectedEditorId={selectedEditorId}
+				setSelectedEditorId={setSelectedEditorId}
+				onSubmit={handleEditorSubmit}
+				isSubmitting={isSubmitting}
+			/>
 
-			{/* Status Update Dialog */}
-			<Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-				<DialogContent className="sm:max-w-[425px]">
-					<DialogHeader>
-						<DialogTitle>Makale Durumunu Güncelle</DialogTitle>
-						<DialogDescription>"{selectedArticle?.title}" makalesinin durumunu değiştirin.</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid gap-2">
-							<Label htmlFor="status">Yeni Durum</Label>
-							<Select value={newStatus} onValueChange={setNewStatus}>
-								<SelectTrigger id="status">
-									<SelectValue placeholder="Durum seçin" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="submitted">Gönderildi</SelectItem>
-									<SelectItem value="under_review">İncelemede</SelectItem>
-									<SelectItem value="revision_requested">Revizyon İstendi</SelectItem>
-									<SelectItem value="accepted">Kabul Edildi</SelectItem>
-									<SelectItem value="rejected">Reddedildi</SelectItem>
-									<SelectItem value="published">Yayınlandı</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setStatusDialogOpen(false)} disabled={isSubmitting}>
-							İptal
-						</Button>
-						<Button onClick={handleStatusSubmit} disabled={isSubmitting}>
-							{isSubmitting ? 'Güncelleniyor...' : 'Güncelle'}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<StatusUpdateDialog
+				open={statusDialogOpen}
+				onOpenChange={setStatusDialogOpen}
+				article={selectedArticle}
+				newStatus={newStatus}
+				setNewStatus={setNewStatus}
+				onSubmit={handleStatusSubmit}
+				isSubmitting={isSubmitting}
+			/>
 
-			{/* Delete Confirmation Dialog */}
-			<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Makaleyi Sil</AlertDialogTitle>
-						<AlertDialogDescription>
-							Bu makaleyi silmek istediğinizden emin misiniz?
-							<br />
-							<strong className="text-foreground">"{selectedArticle?.title}"</strong>
-							<br />
-							Bu işlem geri alınamaz ve tüm ilgili kayıtlar (atamalar, değerlendirmeler, kararlar) da silinecektir.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isSubmitting}>İptal</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={handleDeleteConfirm}
-							disabled={isSubmitting}
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-						>
-							{isSubmitting ? 'Siliniyor...' : 'Sil'}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<DeleteConfirmationDialog
+				open={deleteDialogOpen}
+				onOpenChange={setDeleteDialogOpen}
+				article={selectedArticle}
+				onConfirm={handleDeleteConfirm}
+				isSubmitting={isSubmitting}
+			/>
 
-			{/* Publish Article Dialog */}
 			{selectedArticle && (
 				<PublishArticleDialog
 					article={selectedArticle}
