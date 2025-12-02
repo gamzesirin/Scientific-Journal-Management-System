@@ -1,9 +1,8 @@
 import { createBrowserClient } from '@supabase/ssr'
 
 // Hardcoded values for now (should be in .env.local in production)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jwbxfqzkruhguctxbslf.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YnhmcXprcnVoZ3VjdHhic2xmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1OTc1OTQsImV4cCI6MjA3NTE3MzU5NH0.9-20rUdtycbP9jqR-7EwGsszj299BvXBRvhheu-plIY'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export function createClient() {
 	// URL ve Key kontrolü
