@@ -12,9 +12,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# LightningCSS'i bu platform için rebuild et
-RUN npm rebuild lightningcss
-
+# Turbopack yerine Webpack kullan
+ENV NEXT_TURBOPACK=0
 RUN npm run build
 
 # Runner
