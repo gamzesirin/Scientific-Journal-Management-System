@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { User } from '@supabase/supabase-js'
 
@@ -23,9 +23,17 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
 	const [user, setUser] = useState<User | null>(null)
 	const [loading, setLoading] = useState(true)
-	const supabase = createClient()
+
+	// Supabase client'ı useMemo ile oluştur
+	const supabase = useMemo(() => createClient(), [])
 
 	useEffect(() => {
+		// Supabase client yoksa (build time), sadece loading'i kapat
+		if (!supabase) {
+			setLoading(false)
+			return
+		}
+
 		// Initial auth state
 		const getInitialAuth = async () => {
 			try {
@@ -56,6 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	}, [supabase])
 
 	const signOut = async () => {
+		if (!supabase) return
+
 		try {
 			await supabase.auth.signOut()
 			setUser(null)
