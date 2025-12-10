@@ -12,9 +12,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Turbopack yerine Webpack kullan
-ENV NEXT_TURBOPACK=0
-RUN npm run build
+# Turbopack olmadan build et
+RUN npx next build --no-turbo
 
 # Runner
 FROM base AS runner
