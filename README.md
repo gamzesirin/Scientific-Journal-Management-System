@@ -2,8 +2,6 @@
 
 Modern ve güçlü bir akademik dergi yönetim sistemi. Next.js 15, TypeScript, Supabase ve Tailwind CSS ile geliştirilmiştir.
 
----
-
 ## Teknoloji Stack'i
 
 ### Frontend
@@ -31,8 +29,6 @@ Modern ve güçlü bir akademik dergi yönetim sistemi. Next.js 15, TypeScript, 
 - **Linter**: ESLint 9
 - **Type Checking**: TypeScript Compiler
 - **Version Control**: Git
-
----
 
 ## Kurulum ve Başlangıç
 
@@ -104,8 +100,6 @@ npm run dev
 
 Tarayıcınızda [http://localhost:3000](http://localhost:3000) adresini açın.
 
----
-
 ## Kullanım Kılavuzu
 
 ### Kayıt ve Giriş
@@ -121,12 +115,12 @@ Tarayıcınızda [http://localhost:3000](http://localhost:3000) adresini açın.
 
 **Yapabilecekleri:**
 
-- ✅ Yeni makale gönderimi (PDF/Word)
-- ✅ Makale durum takibi
-- ✅ Revizyon yükleme
-- ✅ Ortak yazar ekleme
-- ✅ Makale geçmişini görme
-- ✅ Hakem yorumlarını görme (editör onayından sonra)
+-   Yeni makale gönderimi (PDF/Word)
+-   Makale durum takibi
+-   Revizyon yükleme
+-   Ortak yazar ekleme
+-   Makale geçmişini görme
+-   Hakem yorumlarını görme (editör onayından sonra)
 
 **Sayfalar:**
 
@@ -139,12 +133,12 @@ Tarayıcınızda [http://localhost:3000](http://localhost:3000) adresini açın.
 
 **Yapabilecekleri:**
 
-- ✅ Atanan makaleleri görüntüleme
-- ✅ Desk evaluation (ön değerlendirme)
-- ✅ Hakem atama ve davet
-- ✅ Hakem raporlarını görüntüleme
-- ✅ Karar verme (Accept/Reject/Revision)
-- ✅ Yazara geri bildirim gönderme
+-   Atanan makaleleri görüntüleme
+-   Desk evaluation (ön değerlendirme)
+-   Hakem atama ve davet
+-   Hakem raporlarını görüntüleme
+-   Karar verme (Accept/Reject/Revision)
+-   Yazara geri bildirim gönderme
 
 **Sayfalar:**
 
@@ -158,12 +152,12 @@ Tarayıcınızda [http://localhost:3000](http://localhost:3000) adresini açın.
 
 **Yapabilecekleri:**
 
-- ✅ Atanmış makaleleri indirme
-- ✅ Detaylı değerlendirme formu doldurma
-- ✅ Puanlama (1-5 skala)
-- ✅ Editöre gizli yorum
-- ✅ Yazara açık yorum
-- ✅ CV yükleme
+-   Atanmış makaleleri indirme
+-   Detaylı değerlendirme formu doldurma
+-   Puanlama (1-5 skala)
+-   Editöre gizli yorum
+-   Yazara açık yorum
+-   CV yükleme
 
 **Sayfalar:**
 
@@ -175,13 +169,13 @@ Tarayıcınızda [http://localhost:3000](http://localhost:3000) adresini açın.
 
 **Yapabilecekleri:**
 
-- ✅ Tüm kullanıcı yönetimi
-- ✅ Rol atama ve düzenleme
-- ✅ Editör atama mekanizması
-- ✅ Sistem raporları
-- ✅ Activity log görüntüleme
-- ✅ Backup ve restore
-- ✅ Sistem ayarları
+-   Tüm kullanıcı yönetimi
+-   Rol atama ve düzenleme
+-   Editör atama mekanizması
+-   Sistem raporları
+-   Activity log görüntüleme
+-   Backup ve restore
+-   Sistem ayarları
 
 **Sayfalar:**
 
@@ -192,7 +186,7 @@ Tarayıcınızda [http://localhost:3000](http://localhost:3000) adresini açın.
 - Yedekleme: `/admin/backup`
 - Ayarlar: `/admin/settings`
 
-## 🤝 Katkıda Bulunma
+## Katkıda Bulunma
 
 1. Fork'layın
 2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
