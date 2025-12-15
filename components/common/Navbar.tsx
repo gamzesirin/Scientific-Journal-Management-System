@@ -20,7 +20,6 @@ import {
 	LayoutDashboard,
 	LogOut,
 	User,
-	Settings,
 	FileText,
 	Menu,
 	X,
@@ -218,20 +217,12 @@ export default function Navbar() {
 											</DropdownMenuItem>
 										)}
 										{userData?.role === 'admin' && (
-											<>
-												<DropdownMenuItem asChild>
-													<Link href="/admin/users" className="cursor-pointer">
-														<UserCog className="mr-2 h-4 w-4" />
-														<span>Kullanıcı Yönetimi</span>
-													</Link>
-												</DropdownMenuItem>
-												<DropdownMenuItem asChild>
-													<Link href="/admin/settings" className="cursor-pointer">
-														<Settings className="mr-2 h-4 w-4" />
-														<span>Ayarlar</span>
-													</Link>
-												</DropdownMenuItem>
-											</>
+											<DropdownMenuItem asChild>
+												<Link href="/admin/users" className="cursor-pointer">
+													<UserCog className="mr-2 h-4 w-4" />
+													<span>Kullanıcı Yönetimi</span>
+												</Link>
+											</DropdownMenuItem>
 										)}
 										<DropdownMenuSeparator />
 										<DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-600">
@@ -316,20 +307,12 @@ export default function Navbar() {
 									</Link>
 								)}
 								{userData?.role === 'admin' && (
-									<>
-										<Link href="/admin/users" onClick={() => setMobileMenuOpen(false)}>
-											<Button variant="ghost" className="w-full justify-start gap-2">
-												<UserCog className="h-4 w-4" />
-												Kullanıcı Yönetimi
-											</Button>
-										</Link>
-										<Link href="/admin/settings" onClick={() => setMobileMenuOpen(false)}>
-											<Button variant="ghost" className="w-full justify-start gap-2">
-												<Settings className="h-4 w-4" />
-												Ayarlar
-											</Button>
-										</Link>
-									</>
+									<Link href="/admin/users" onClick={() => setMobileMenuOpen(false)}>
+										<Button variant="ghost" className="w-full justify-start gap-2">
+											<UserCog className="h-4 w-4" />
+											Kullanıcı Yönetimi
+										</Button>
+									</Link>
 								)}
 								<Button variant="ghost" className="w-full justify-start gap-2 text-red-600" onClick={handleSignOut}>
 									<LogOut className="h-4 w-4" />

@@ -374,25 +374,6 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
 				</Card>
 			</div>
 
-			{/* Other Actions */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Diğer İşlemler</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-wrap gap-2">
-						<Link href="/admin/settings">
-							<Button variant="outline">Sistem Ayarları</Button>
-						</Link>
-						<Link href="/admin/reports">
-							<Button variant="outline">Raporlar</Button>
-						</Link>
-						<Link href="/admin/backup">
-							<Button variant="outline">Yedekleme</Button>
-						</Link>
-					</div>
-				</CardContent>
-			</Card>
 		</>
 	)
 }
